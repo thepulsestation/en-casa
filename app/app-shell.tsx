@@ -364,7 +364,7 @@ export function AppShell() {
           </aside>
 
           <section className="min-w-0 flex-1">
-            <header className="sticky top-0 z-20 flex h-[72px] items-center justify-between border-b border-border/70 bg-background/90 px-5 backdrop-blur-xl sm:px-8 lg:h-[84px] lg:px-10">
+            <header className="app-header sticky top-0 z-20 flex h-[72px] items-center justify-between border-b border-border/70 bg-background/90 px-5 backdrop-blur-xl sm:px-8 lg:h-[84px] lg:px-10">
               <div className="lg:hidden"><p className="text-lg font-extrabold tracking-[-0.03em]">En casa</p><p className="text-[11px] font-medium capitalize text-muted-foreground">{dateLabel}</p></div>
               <div className="hidden lg:block"><p className="text-sm font-medium capitalize text-muted-foreground">{dateLabel}</p><h1 className="text-[22px] font-extrabold tracking-[-0.03em]">Buenos días, {userName}</h1></div>
               <div className="flex items-center gap-2">
