@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="En casa">
+  <rect width="512" height="512" rx="116" fill="#194d3b"/>
+  <path d="M147 202 256 137l109 65v139a34 34 0 0 1-34 34H181a34 34 0 0 1-34-34V202Z" fill="#f8f5ee"/>
+  <path d="m128 214 128-77 128 77" fill="none" stroke="#f4d37c" stroke-linecap="round" stroke-linejoin="round" stroke-width="31"/>
+  <path d="M211 253h90v122h-90z" fill="#e8bca9"/>
+  <path d="M229 292c18 15 36 15 54 0" fill="none" stroke="#194d3b" stroke-linecap="round" stroke-width="13"/>
+</svg>

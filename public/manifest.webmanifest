@@ -1,0 +1,22 @@
+{
+  "name": "En casa — La despensa familiar",
+  "short_name": "En casa",
+  "description": "Inventario familiar para consumir a tiempo y desperdiciar menos.",
+  "id": "./",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f8f5ee",
+  "theme_color": "#194d3b",
+  "lang": "es",
+  "orientation": "portrait-primary",
+  "categories": ["food", "lifestyle", "utilities"],
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
