@@ -270,6 +270,7 @@ export function AppShell() {
   const client = useMemo(() => getSupabaseClient(), []);
   const [session, setSession] = useState<Session | null>(null);
   const [authLoading, setAuthLoading] = useState(Boolean(client));
+  const [passwordRecovery, setPasswordRecovery] = useState(false);
   const [household, setHousehold] = useState<Household | null>(null);
   const [householdLoading, setHouseholdLoading] = useState(Boolean(client));
   const [view, setView] = useState<View>('today');
@@ -300,8 +301,18 @@ export function AppShell() {
 
   useEffect(() => {
     if (!client) return;
+    const hashParameters = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+    const queryParameters = new URLSearchParams(window.location.search);
+    if (hashParameters.get('type') === 'recovery' || queryParameters.get('type') === 'recovery') {
+      setPasswordRecovery(true);
+    }
     void client.auth.getSession().then(({ data }) => { setSession(data.session); setAuthLoading(false); });
-    const { data } = client.auth.onAuthStateChange((_event, nextSession) => { setSession(nextSession); setAuthLoading(false); });
+    const { data } = client.auth.onAuthStateChange((event, nextSession) => {
+      setSession(nextSession);
+      if (event === 'PASSWORD_RECOVERY') setPasswordRecovery(true);
+      if (event === 'SIGNED_OUT') setPasswordRecovery(false);
+      setAuthLoading(false);
+    });
     return () => data.subscription.unsubscribe();
   }, [client]);
 
@@ -331,6 +342,7 @@ export function AppShell() {
     discard: (item) => setPendingDiscard(item),
   };
 
+  if (client && passwordRecovery) return <AuthScreen client={client} initialMode="recovery" onRecoveryComplete={() => setPasswordRecovery(false)} />;
   if (authLoading) return <LoadingScreen />;
   if (client && !session) return <AuthScreen client={client} />;
   if (client && householdLoading) return <LoadingScreen />;
