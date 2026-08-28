@@ -5,14 +5,17 @@ const inferredBasePath =
   process.env.GITHUB_ACTIONS === 'true' && repositoryName
     ? `/${repositoryName}`
     : '';
-const basePath = process.env.NEXT_PUBLIC_BASE_PATH ?? inferredBasePath;
+const publicPath = process.env.NEXT_PUBLIC_BASE_PATH ?? inferredBasePath;
 
 const nextConfig: NextConfig = {
   output: 'export',
   trailingSlash: true,
-  basePath,
+  // GitHub Pages mounts the artifact at /<repository>. Keeping routes at the
+  // artifact root preserves index.html; assetPrefix points generated assets to
+  // their public project URL without changing the route that gets prerendered.
+  assetPrefix: publicPath || undefined,
   env: {
-    NEXT_PUBLIC_BASE_PATH: basePath,
+    NEXT_PUBLIC_BASE_PATH: publicPath,
   },
 };
 
