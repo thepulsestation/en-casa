@@ -128,3 +128,15 @@
     -webkit-tap-highlight-color: transparent;
   }
 }
+
+/* Installed iOS PWAs can keep the older translucent status-bar preference
+   until they are reinstalled. Reserve the safe area in either case so the
+   clock, signal and battery never overlap the app header. */
+@media (display-mode: standalone) {
+  .app-header {
+    height: calc(4.5rem + env(safe-area-inset-top, 0px));
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-left: max(1.25rem, env(safe-area-inset-left, 0px));
+    padding-right: max(1.25rem, env(safe-area-inset-right, 0px));
+  }
+}
