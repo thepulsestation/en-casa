@@ -1,23 +1,43 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { ArrowRight, Check, LockKeyhole, PackageOpen, UsersRound } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, KeyRound, LockKeyhole, PackageOpen, UsersRound } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { clearAuthCallbackUrl, getAuthRedirectUrl } from '@/lib/supabase-client';
 
-type Props = { client: SupabaseClient };
+type AuthMode = 'signin' | 'signup' | 'forgot' | 'recovery';
 
-export function AuthScreen({ client }: Props) {
-  const [mode, setMode] = useState<'signin' | 'signup'>('signin');
+type Props = {
+  client: SupabaseClient;
+  initialMode?: AuthMode;
+  onRecoveryComplete?: () => void;
+};
+
+export function AuthScreen({ client, initialMode = 'signin', onRecoveryComplete }: Props) {
+  const [mode, setMode] = useState<AuthMode>(initialMode);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [passwordConfirmation, setPasswordConfirmation] = useState('');
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (initialMode === 'recovery') setMode('recovery');
+  }, [initialMode]);
+
+  const changeMode = (nextMode: AuthMode) => {
+    setMode(nextMode);
+    setPassword('');
+    setPasswordConfirmation('');
+    setError(null);
+    setMessage(null);
+  };
 
   const submit = async (event: React.SubmitEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -29,19 +49,52 @@ export function AuthScreen({ client }: Props) {
       setBusy(false);
       return;
     }
+    if (mode === 'forgot') {
+      const { error: resetError } = await client.auth.resetPasswordForEmail(email.trim(), {
+        redirectTo: getAuthRedirectUrl(),
+      });
+      if (resetError) setError(resetError.message);
+      else setMessage('Te hemos enviado un enlace para elegir una contraseña nueva. Revisa también la carpeta de spam.');
+      setBusy(false);
+      return;
+    }
     if (password.length < 6) {
       setError('La contraseña debe tener al menos 6 caracteres.');
+      setBusy(false);
+      return;
+    }
+    if (mode === 'recovery') {
+      if (password !== passwordConfirmation) {
+        setError('Las dos contraseñas no coinciden.');
+        setBusy(false);
+        return;
+      }
+      const { error: updateError } = await client.auth.updateUser({ password });
+      if (updateError) {
+        setError(updateError.message);
+      } else {
+        await client.auth.signOut();
+        clearAuthCallbackUrl();
+        setMode('signin');
+        setPassword('');
+        setPasswordConfirmation('');
+        setMessage('Contraseña actualizada. Ya puedes entrar con la nueva contraseña.');
+        onRecoveryComplete?.();
+      }
       setBusy(false);
       return;
     }
 
     const result =
       mode === 'signin'
-        ? await client.auth.signInWithPassword({ email, password })
+        ? await client.auth.signInWithPassword({ email: email.trim(), password })
         : await client.auth.signUp({
-            email,
+            email: email.trim(),
             password,
-            options: { data: { full_name: name.trim() } },
+            options: {
+              data: { full_name: name.trim() },
+              emailRedirectTo: getAuthRedirectUrl(),
+            },
           });
 
     if (result.error) {
@@ -56,6 +109,22 @@ export function AuthScreen({ client }: Props) {
     }
     setBusy(false);
   };
+
+  const title = mode === 'signin'
+    ? 'Volver a casa'
+    : mode === 'signup'
+      ? 'Crear tu cuenta'
+      : mode === 'forgot'
+        ? 'Recuperar contraseña'
+        : 'Elige una contraseña nueva';
+
+  const description = mode === 'signin'
+    ? 'Entra para ver lo que hay y actualizar lo que habéis consumido.'
+    : mode === 'signup'
+      ? 'Después podrás crear una casa o unirte con el código de tu familia.'
+      : mode === 'forgot'
+        ? 'Te enviaremos un enlace seguro a tu correo para que puedas volver a entrar.'
+        : 'Escribe la contraseña que quieres utilizar a partir de ahora.';
 
   return (
     <main className="grid min-h-screen bg-background lg:grid-cols-[1.05fr_0.95fr]">
@@ -89,16 +158,10 @@ export function AuthScreen({ client }: Props) {
             <div><p className="font-extrabold">En casa</p><p className="text-xs text-muted-foreground">La despensa familiar</p></div>
           </div>
           <div className="grid size-12 place-items-center rounded-2xl bg-primary/10 text-primary">
-            {mode === 'signin' ? <LockKeyhole className="size-5" /> : <UsersRound className="size-5" />}
+            {mode === 'signin' ? <LockKeyhole className="size-5" /> : mode === 'signup' ? <UsersRound className="size-5" /> : <KeyRound className="size-5" />}
           </div>
-          <h2 className="mt-5 text-3xl font-extrabold tracking-[-0.04em]">
-            {mode === 'signin' ? 'Volver a casa' : 'Crear tu cuenta'}
-          </h2>
-          <p className="mt-2 text-sm leading-6 text-muted-foreground">
-            {mode === 'signin'
-              ? 'Entra para ver lo que hay y actualizar lo que habéis consumido.'
-              : 'Después podrás crear una casa o unirte con el código de tu familia.'}
-          </p>
+          <h2 className="mt-5 text-3xl font-extrabold tracking-[-0.04em]">{title}</h2>
+          <p className="mt-2 text-sm leading-6 text-muted-foreground">{description}</p>
 
           <form className="mt-8 space-y-4" onSubmit={submit}>
             {mode === 'signup' && (
@@ -107,28 +170,46 @@ export function AuthScreen({ client }: Props) {
                 <Input id="auth-name" autoComplete="name" className="h-11 rounded-xl bg-card" value={name} onChange={(event) => setName(event.target.value)} placeholder="Nicole" />
               </div>
             )}
-            <div className="space-y-2">
-              <Label htmlFor="auth-email">Correo electrónico</Label>
-              <Input id="auth-email" type="email" autoComplete="email" className="h-11 rounded-xl bg-card" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="tu@correo.com" required />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="auth-password">Contraseña</Label>
-              <Input id="auth-password" type="password" autoComplete={mode === 'signin' ? 'current-password' : 'new-password'} className="h-11 rounded-xl bg-card" value={password} onChange={(event) => setPassword(event.target.value)} required />
-            </div>
+            {mode !== 'recovery' && (
+              <div className="space-y-2">
+                <Label htmlFor="auth-email">Correo electrónico</Label>
+                <Input id="auth-email" type="email" autoComplete="email" className="h-11 rounded-xl bg-card" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="tu@correo.com" required />
+              </div>
+            )}
+            {mode !== 'forgot' && (
+              <div className="space-y-2">
+                <Label htmlFor="auth-password">{mode === 'recovery' ? 'Nueva contraseña' : 'Contraseña'}</Label>
+                <Input id="auth-password" type="password" autoComplete={mode === 'signin' ? 'current-password' : 'new-password'} className="h-11 rounded-xl bg-card" value={password} onChange={(event) => setPassword(event.target.value)} required />
+              </div>
+            )}
+            {mode === 'signin' && (
+              <button type="button" className="block w-full text-right text-xs font-extrabold text-primary" onClick={() => changeMode('forgot')}>
+                He olvidado mi contraseña
+              </button>
+            )}
+            {mode === 'recovery' && (
+              <div className="space-y-2">
+                <Label htmlFor="auth-password-confirmation">Repite la nueva contraseña</Label>
+                <Input id="auth-password-confirmation" type="password" autoComplete="new-password" className="h-11 rounded-xl bg-card" value={passwordConfirmation} onChange={(event) => setPasswordConfirmation(event.target.value)} required />
+              </div>
+            )}
             {error && <p role="alert" className="rounded-xl bg-destructive/8 p-3 text-sm font-medium text-destructive">{error}</p>}
             {message && <p className="rounded-xl bg-primary/8 p-3 text-sm font-medium text-primary">{message}</p>}
             <Button type="submit" className="h-11 w-full rounded-xl font-extrabold" disabled={busy}>
-              {busy ? 'Un momento…' : mode === 'signin' ? 'Entrar' : 'Crear cuenta'}
+              {busy ? 'Un momento…' : mode === 'signin' ? 'Entrar' : mode === 'signup' ? 'Crear cuenta' : mode === 'forgot' ? 'Enviar enlace' : 'Guardar contraseña'}
               {!busy && <ArrowRight className="size-4" />}
             </Button>
           </form>
 
-          <p className="mt-6 text-center text-sm text-muted-foreground">
-            {mode === 'signin' ? '¿Es tu primera vez?' : '¿Ya tienes cuenta?'}{' '}
-            <button type="button" className="font-extrabold text-primary" onClick={() => { setMode(mode === 'signin' ? 'signup' : 'signin'); setError(null); setMessage(null); }}>
-              {mode === 'signin' ? 'Crear una cuenta' : 'Iniciar sesión'}
-            </button>
-          </p>
+          {mode !== 'recovery' && (
+            <p className="mt-6 text-center text-sm text-muted-foreground">
+              {mode === 'signin' ? '¿Es tu primera vez?' : mode === 'signup' ? '¿Ya tienes cuenta?' : '¿Has recordado la contraseña?'}{' '}
+              <button type="button" className="inline-flex items-center gap-1 font-extrabold text-primary" onClick={() => changeMode(mode === 'signin' ? 'signup' : 'signin')}>
+                {mode === 'forgot' && <ArrowLeft className="size-3.5" />}
+                {mode === 'signin' ? 'Crear una cuenta' : 'Iniciar sesión'}
+              </button>
+            </p>
+          )}
         </div>
       </section>
     </main>
