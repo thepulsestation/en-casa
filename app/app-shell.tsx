@@ -18,6 +18,7 @@ import {
   MapPin,
   PackageOpen,
   Plus,
+  RotateCcw,
   ScanLine,
   Search,
   Settings2,
@@ -160,7 +161,7 @@ type ItemActions = {
 
 function TodayView({ items, onViewInventory, onImport, actions }: {
   items: InventoryItem[];
-  onViewInventory: () => void;
+  onViewInventory: (location?: StorageLocation) => void;
   onImport: () => void;
   actions: ItemActions;
 }) {
@@ -187,14 +188,14 @@ function TodayView({ items, onViewInventory, onImport, actions }: {
                 : 'No hay nada que caduque hoy. Puedes consultar lo próximo para organizar las comidas.'}
             </p>
           </div>
-          <Button className="h-11 justify-between rounded-xl bg-[#f4d37c] px-4 font-bold text-[#253b31] hover:bg-[#f6dd99]" onClick={onViewInventory}>Ver inventario<ChevronRight className="ml-2 size-4" /></Button>
+          <Button className="h-11 justify-between rounded-xl bg-[#f4d37c] px-4 font-bold text-[#253b31] hover:bg-[#f6dd99]" onClick={() => onViewInventory()}>Ver inventario<ChevronRight className="ml-2 size-4" /></Button>
         </div>
       </section>
 
       <section className="mt-7" aria-labelledby="soon-title">
         <div className="mb-4 flex items-end justify-between">
           <div><p className="text-xs font-bold uppercase tracking-[0.12em] text-primary">Prioridad</p><h2 id="soon-title" className="mt-1 text-xl font-extrabold tracking-[-0.03em]">Próximamente</h2></div>
-          <button className="text-sm font-bold text-primary" type="button" onClick={onViewInventory}>Ver todo</button>
+          <button className="text-sm font-bold text-primary" type="button" onClick={() => onViewInventory()}>Ver todo</button>
         </div>
         {urgent.length ? (
           <div className="grid gap-3 md:grid-cols-3">
@@ -213,7 +214,7 @@ function TodayView({ items, onViewInventory, onImport, actions }: {
           { label: 'Otro', location: 'other' as const, icon: MapPin, color: 'bg-[#eee9f5] text-[#6f5a8d]' },
         ]).map(({ label, location, icon: Icon, color }) => {
           const count = items.filter((item) => item.storageLocation === location).length;
-          return <button key={label} className="flex items-center gap-3 rounded-[18px] border border-border bg-card p-4 text-left shadow-[0_8px_24px_rgb(44_45_40/4%)] hover:border-primary/30" type="button" onClick={onViewInventory}><span className={`grid size-10 place-items-center rounded-xl ${color}`}><Icon className="size-5" /></span><span><span className="block text-sm font-extrabold">{label}</span><span className="mt-0.5 block text-xs text-muted-foreground">{count} {count === 1 ? 'producto' : 'productos'}</span></span><ChevronRight className="ml-auto size-4 text-muted-foreground" /></button>;
+          return <button key={label} className="flex items-center gap-3 rounded-[18px] border border-border bg-card p-4 text-left shadow-[0_8px_24px_rgb(44_45_40/4%)] hover:border-primary/30" type="button" onClick={() => onViewInventory(location)}><span className={`grid size-10 place-items-center rounded-xl ${color}`}><Icon className="size-5" /></span><span><span className="block text-sm font-extrabold">{label}</span><span className="mt-0.5 block text-xs text-muted-foreground">{count} {count === 1 ? 'producto' : 'productos'}</span></span><ChevronRight className="ml-auto size-4 text-muted-foreground" /></button>;
         })}
       </section>
 
@@ -231,9 +232,8 @@ function TodayView({ items, onViewInventory, onImport, actions }: {
   );
 }
 
-function InventoryView({ items, actions, onAdd }: { items: InventoryItem[]; actions: ItemActions; onAdd: () => void }) {
+function InventoryView({ items, actions, onAdd, location, onLocationChange }: { items: InventoryItem[]; actions: ItemActions; onAdd: () => void; location: 'all' | StorageLocation; onLocationChange: (location: 'all' | StorageLocation) => void }) {
   const [query, setQuery] = useState('');
-  const [location, setLocation] = useState<'all' | StorageLocation>('all');
   const filtered = useMemo(() => items.filter((item) => (location === 'all' || item.storageLocation === location) && item.name.toLocaleLowerCase('es').includes(query.trim().toLocaleLowerCase('es'))).sort(inventorySort), [items, location, query]);
 
   return (
@@ -245,7 +245,7 @@ function InventoryView({ items, actions, onAdd }: { items: InventoryItem[]; acti
       <div className="mt-6 flex flex-col gap-3 rounded-2xl border border-border bg-card p-3 sm:flex-row">
         <div className="relative min-w-0 flex-1"><Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" /><Input className="h-10 rounded-xl border-0 bg-muted/55 pl-9 shadow-none" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar un producto…" />{query && <button type="button" aria-label="Borrar búsqueda" className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground" onClick={() => setQuery('')}><X className="size-4" /></button>}</div>
         <div className="flex gap-1.5 overflow-x-auto pb-1 sm:pb-0">
-          {([{ id: 'all', label: 'Todo' }, { id: 'fridge', label: 'Nevera' }, { id: 'freezer', label: 'Congelador' }, { id: 'pantry', label: 'Despensa' }, { id: 'other', label: 'Otro' }] as const).map((filter) => <button key={filter.id} type="button" className={`h-10 shrink-0 rounded-xl px-3 text-xs font-extrabold ${location === filter.id ? 'bg-primary text-primary-foreground' : 'bg-muted/60 text-muted-foreground hover:text-foreground'}`} onClick={() => setLocation(filter.id)}>{filter.label}</button>)}
+          {([{ id: 'all', label: 'Todo' }, { id: 'fridge', label: 'Nevera' }, { id: 'freezer', label: 'Congelador' }, { id: 'pantry', label: 'Despensa' }, { id: 'other', label: 'Otro' }] as const).map((filter) => <button key={filter.id} type="button" className={`h-10 shrink-0 rounded-xl px-3 text-xs font-extrabold ${location === filter.id ? 'bg-primary text-primary-foreground' : 'bg-muted/60 text-muted-foreground hover:text-foreground'}`} onClick={() => onLocationChange(filter.id)}>{filter.label}</button>)}
         </div>
       </div>
       {filtered.length ? <div className="mt-5 grid gap-3 md:grid-cols-2">{filtered.map((item) => <InventoryCard key={item.id} item={item} onConsume={() => actions.consume(item.id)} onOpen={() => actions.open(item.id)} onEdit={() => actions.edit(item)} onDiscard={() => actions.discard(item)} />)}</div> : <div className="mt-5 rounded-2xl border border-border bg-card p-10 text-center"><Search className="mx-auto size-7 text-muted-foreground" /><p className="mt-3 text-sm font-extrabold">No hay resultados</p><p className="mt-1 text-xs text-muted-foreground">Prueba otra búsqueda o ubicación.</p></div>}
@@ -253,7 +253,7 @@ function InventoryView({ items, actions, onAdd }: { items: InventoryItem[]; acti
   );
 }
 
-function ActivityView({ activity }: { activity: ReturnType<typeof useInventoryData>['activity'] }) {
+function ActivityView({ activity, onUndo, undoingId }: { activity: ReturnType<typeof useInventoryData>['activity']; onUndo: (activityId: string) => void; undoingId: string | null }) {
   const actionIcon = { imported: ScanLine, created: Plus, opened: PackageOpen, consumed: CheckCircle2, discarded: Trash2, updated: Edit3 } as const;
   return (
     <div className="mx-auto max-w-3xl">
@@ -261,7 +261,7 @@ function ActivityView({ activity }: { activity: ReturnType<typeof useInventoryDa
       <div className="mt-7 overflow-hidden rounded-[22px] border border-border bg-card">
         {activity.length ? activity.map((entry, index) => {
           const Icon = actionIcon[entry.action];
-          return <article key={entry.id} className={`flex gap-3.5 p-4 sm:p-5 ${index ? 'border-t border-border/70' : ''}`}><span className="grid size-10 shrink-0 place-items-center rounded-xl bg-muted text-primary"><Icon className="size-4" /></span><div className="min-w-0 flex-1"><p className="text-sm"><span className="font-extrabold">{entry.actorName}</span> · {entry.detail.toLocaleLowerCase('es')}</p><p className="mt-1 text-xs font-semibold text-muted-foreground">{entry.itemName}</p></div><time className="shrink-0 text-[11px] text-muted-foreground">{formatDistanceToNow(new Date(entry.createdAt), { addSuffix: true, locale: es })}</time></article>;
+          return <article key={entry.id} className={`flex gap-3.5 p-4 sm:p-5 ${index ? 'border-t border-border/70' : ''}`}><span className="grid size-10 shrink-0 place-items-center rounded-xl bg-muted text-primary"><Icon className="size-4" /></span><div className="min-w-0 flex-1"><p className="text-sm"><span className="font-extrabold">{entry.actorName}</span> · {entry.detail.toLocaleLowerCase('es')}</p><p className="mt-1 text-xs font-semibold text-muted-foreground">{entry.itemName}</p></div><div className="flex shrink-0 flex-col items-end gap-2"><time className="text-[11px] text-muted-foreground">{formatDistanceToNow(new Date(entry.createdAt), { addSuffix: true, locale: es })}</time>{entry.canUndo && <Button variant="outline" size="sm" className="h-8 rounded-lg px-2.5 text-[11px] font-bold" disabled={undoingId === entry.id} onClick={() => onUndo(entry.id)}><RotateCcw className={`size-3.5 ${undoingId === entry.id ? 'animate-spin' : ''}`} />{undoingId === entry.id ? 'Recuperando…' : 'Deshacer'}</Button>}</div></article>;
         }) : <div className="p-10 text-center"><Clock3 className="mx-auto size-7 text-muted-foreground" /><p className="mt-3 text-sm font-extrabold">Todavía no hay actividad</p></div>}
       </div>
     </div>
@@ -276,11 +276,13 @@ export function AppShell() {
   const [household, setHousehold] = useState<Household | null>(null);
   const [householdLoading, setHouseholdLoading] = useState(Boolean(client));
   const [view, setView] = useState<View>('today');
+  const [inventoryLocation, setInventoryLocation] = useState<'all' | StorageLocation>('all');
   const [importOpen, setImportOpen] = useState(false);
   const [itemDialogOpen, setItemDialogOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<InventoryItem | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [pendingDiscard, setPendingDiscard] = useState<InventoryItem | null>(null);
+  const [undoingActivityId, setUndoingActivityId] = useState<string | null>(null);
   const [notice, setNotice] = useState<{ title: string; description: string; type: 'success' | 'error' | 'info' } | null>(null);
 
   const userName = session?.user.user_metadata?.full_name || session?.user.email?.split('@')[0] || 'Nicole';
@@ -337,8 +339,19 @@ export function AppShell() {
 
   const notify = (title: string, description: string, type: 'success' | 'error' | 'info' = 'success') => setNotice({ title, description, type });
   const notifyError = (caught: unknown) => notify('No se ha podido completar', caught instanceof Error ? caught.message : 'Prueba de nuevo.', 'error');
+  const openInventory = (location: 'all' | StorageLocation = 'all') => {
+    setInventoryLocation(location);
+    setView('inventory');
+  };
+  const undoConsumption = (activityId: string) => {
+    setUndoingActivityId(activityId);
+    void data.undoConsumption(activityId)
+      .then(() => notify('Producto recuperado', 'La cantidad consumida vuelve a estar disponible.'))
+      .catch(notifyError)
+      .finally(() => setUndoingActivityId(null));
+  };
   const actions: ItemActions = {
-    consume: (id) => void data.consume(id).then(() => notify('Inventario actualizado', 'Se ha descontado la cantidad consumida.')).catch(notifyError),
+    consume: (id) => void data.consume(id).then(() => notify('Inventario actualizado', 'Se ha descontado la cantidad. Puedes deshacerlo desde Actividad.')).catch(notifyError),
     open: (id) => void data.openItem(id).then(() => notify('Producto abierto', 'Ya se tendrá en cuenta su duración tras la apertura.')).catch(notifyError),
     edit: (item) => { setEditingItem(item); setItemDialogOpen(true); },
     discard: (item) => setPendingDiscard(item),
@@ -360,7 +373,7 @@ export function AppShell() {
           <aside className="hidden w-[248px] shrink-0 border-r border-border/80 bg-card px-5 py-7 lg:flex lg:flex-col">
             <div className="flex items-center gap-3 px-2"><div className="grid size-10 place-items-center rounded-[14px] bg-primary text-primary-foreground shadow-[0_8px_20px_rgb(42_108_77/22%)]"><PackageOpen className="size-5" /></div><div><p className="font-heading text-[17px] font-bold tracking-[-0.02em]">En casa</p><p className="text-xs text-muted-foreground">{household?.name ?? 'La despensa familiar'}</p></div></div>
             <nav className="mt-10 space-y-1.5" aria-label="Navegación principal">
-              {navItems.map((item) => { const Icon = item.icon; const active = activeNav(item); return <button key={item.label} className={`flex h-11 w-full items-center gap-3 rounded-xl px-3 text-sm font-semibold transition-colors ${active ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`} type="button" onClick={() => item.import ? setImportOpen(true) : item.view && setView(item.view)}><Icon className="size-[18px]" strokeWidth={active ? 2.4 : 2} />{item.label}</button>; })}
+              {navItems.map((item) => { const Icon = item.icon; const active = activeNav(item); return <button key={item.label} className={`flex h-11 w-full items-center gap-3 rounded-xl px-3 text-sm font-semibold transition-colors ${active ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`} type="button" onClick={() => item.import ? setImportOpen(true) : item.view === 'inventory' ? openInventory() : item.view && setView(item.view)}><Icon className="size-[18px]" strokeWidth={active ? 2.4 : 2} />{item.label}</button>; })}
             </nav>
             <div className="mt-auto rounded-2xl bg-[#f2eee5] p-4"><div className="flex items-center gap-2 text-sm font-bold text-[#6d5733]"><Bell className="size-4" />Avisos a las 09:00</div><p className="mt-2 text-xs leading-5 text-[#806e50]">Te avisaremos de lo que caduque a 3 días, 1 día y el mismo día.</p></div>
           </aside>
@@ -376,12 +389,12 @@ export function AppShell() {
             </header>
 
             <div className="px-5 py-6 sm:px-8 lg:px-10 lg:py-9">
-              {data.loading ? <div className="grid min-h-[55vh] place-items-center"><Loader2 className="size-6 animate-spin text-primary" /></div> : data.error ? <div className="mx-auto max-w-xl rounded-2xl border border-destructive/20 bg-card p-8 text-center"><CloudOff className="mx-auto size-7 text-destructive" /><p className="mt-3 font-extrabold">No se ha podido cargar la casa</p><p className="mt-1 text-sm text-muted-foreground">{data.error}</p><Button variant="outline" className="mt-5" onClick={() => void data.reload()}>Volver a intentar</Button></div> : view === 'today' ? <TodayView items={data.items} onViewInventory={() => setView('inventory')} onImport={() => setImportOpen(true)} actions={actions} /> : view === 'inventory' ? <InventoryView items={data.items} actions={actions} onAdd={() => { setEditingItem(null); setItemDialogOpen(true); }} /> : <ActivityView activity={data.activity} />}
+              {data.loading ? <div className="grid min-h-[55vh] place-items-center"><Loader2 className="size-6 animate-spin text-primary" /></div> : data.error ? <div className="mx-auto max-w-xl rounded-2xl border border-destructive/20 bg-card p-8 text-center"><CloudOff className="mx-auto size-7 text-destructive" /><p className="mt-3 font-extrabold">No se ha podido cargar la casa</p><p className="mt-1 text-sm text-muted-foreground">{data.error}</p><Button variant="outline" className="mt-5" onClick={() => void data.reload()}>Volver a intentar</Button></div> : view === 'today' ? <TodayView items={data.items} onViewInventory={openInventory} onImport={() => setImportOpen(true)} actions={actions} /> : view === 'inventory' ? <InventoryView items={data.items} actions={actions} location={inventoryLocation} onLocationChange={setInventoryLocation} onAdd={() => { setEditingItem(null); setItemDialogOpen(true); }} /> : <ActivityView activity={data.activity} onUndo={undoConsumption} undoingId={undoingActivityId} />}
             </div>
           </section>
         </div>
 
-        <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-card/95 px-3 pb-[max(10px,env(safe-area-inset-bottom))] pt-2 backdrop-blur-xl lg:hidden" aria-label="Navegación principal"><div className="mx-auto flex max-w-md justify-around">{navItems.map((item) => { const Icon = item.icon; const active = activeNav(item); return <button key={item.label} className={`flex min-w-16 flex-col items-center gap-1 rounded-xl px-2 py-1.5 text-[10px] font-bold ${active ? 'text-primary' : 'text-muted-foreground'}`} type="button" onClick={() => item.import ? setImportOpen(true) : item.view && setView(item.view)}><span className={`grid size-8 place-items-center rounded-xl ${active ? 'bg-primary/10' : ''}`}><Icon className="size-[18px]" strokeWidth={active ? 2.5 : 2} /></span>{item.label}</button>; })}</div></nav>
+        <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-card/95 px-3 pb-[max(10px,env(safe-area-inset-bottom))] pt-2 backdrop-blur-xl lg:hidden" aria-label="Navegación principal"><div className="mx-auto flex max-w-md justify-around">{navItems.map((item) => { const Icon = item.icon; const active = activeNav(item); return <button key={item.label} className={`flex min-w-16 flex-col items-center gap-1 rounded-xl px-2 py-1.5 text-[10px] font-bold ${active ? 'text-primary' : 'text-muted-foreground'}`} type="button" onClick={() => item.import ? setImportOpen(true) : item.view === 'inventory' ? openInventory() : item.view && setView(item.view)}><span className={`grid size-8 place-items-center rounded-xl ${active ? 'bg-primary/10' : ''}`}><Icon className="size-[18px]" strokeWidth={active ? 2.5 : 2} /></span>{item.label}</button>; })}</div></nav>
       </main>
 
       <ImportPurchaseDialog open={importOpen} onOpenChange={setImportOpen} existingNames={data.items.map((item) => item.name)} onImport={async (purchase) => { await data.importPurchase(purchase); notify('Compra añadida', `${purchase.items.length} productos ya están en el inventario.`); }} />
