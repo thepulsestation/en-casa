@@ -137,7 +137,7 @@ function InventoryCard({
           <p className={`mt-2 inline-flex items-center gap-1.5 text-xs font-extrabold ${expiryTone(item)}`}>
             <span className="size-1.5 rounded-full bg-current" />{formatExpiry(item)}
           </p>
-          {effectiveExpiry && <p className="mt-1 text-[11px] text-muted-foreground">{expiryKindLabels[item.expiryKind]}: {formatLongDate(effectiveExpiry)}</p>}
+          {effectiveExpiry && <p className="mt-1 text-[11px] text-muted-foreground">{expiryKindLabels[item.expiryKind]}: {formatLongDate(effectiveExpiry, effectiveExpiry === item.expiresOn ? item.expiryPrecision : 'day')}</p>}
         </div>
         <Button aria-label={`Editar ${item.name}`} variant="ghost" size="icon-sm" onClick={onEdit}><Edit3 className="size-4" /></Button>
       </div>
