@@ -18,6 +18,7 @@ import { Textarea } from '@/components/ui/textarea';
 import {
   examplePurchaseJson,
   expiryKindLabels,
+  formatLongDate,
   formatQuantity,
   normalizeImportPayload,
   purchaseImportSchema,
@@ -171,7 +172,7 @@ export function ImportPurchaseDialog({ open, onOpenChange, existingNames, onImpo
                       </p>
                       <div className="mt-2 flex flex-wrap gap-1.5">
                         <Badge variant="secondary" className="font-medium">
-                          {item.expires_on ? `Fecha: ${item.expires_on}` : 'Sin fecha'}
+                          {item.expires_on ? `Fecha: ${formatLongDate(item.expires_on, item.expiry_precision)}` : 'Sin fecha'}
                         </Badge>
                         <Badge variant="secondary" className="font-medium">
                           {expiryKindLabels[item.expiry_kind]}
@@ -220,4 +221,3 @@ export function ImportPurchaseDialog({ open, onOpenChange, existingNames, onImpo
     </Dialog>
   );
 }
-
