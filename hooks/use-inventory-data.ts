@@ -134,6 +134,12 @@ export function useInventoryData({ client, householdId, userId, actorName }: Opt
           detail: row.detail,
           actorName: row.actor_name || 'Alguien de casa',
           createdAt: row.created_at,
+          quantityDelta: row.quantity_delta == null ? undefined : Number(row.quantity_delta),
+          canUndo:
+            row.action === 'consumed'
+            && Number(row.quantity_delta) < 0
+            && !row.metadata?.restored_at
+            && row.batch_status !== 'discarded',
         })),
       );
     }
@@ -256,6 +262,8 @@ export function useInventoryData({ client, householdId, userId, actorName }: Opt
           action: 'consumed',
           itemName: item.name,
           detail: `Consumió ${amount} ${item.unit === 'unit' ? 'unidad' : item.unit}`,
+          quantityDelta: -amount,
+          canUndo: true,
         });
         return;
       }
@@ -269,6 +277,58 @@ export function useInventoryData({ client, householdId, userId, actorName }: Opt
       await load();
     },
     [addLocalActivity, client, demoMode, items, load],
+  );
+
+  const undoConsumption = useCallback(
+    async (activityId: string) => {
+      const entry = activity.find((candidate) => candidate.id === activityId);
+      if (!entry || entry.action !== 'consumed' || !entry.canUndo || !entry.itemId) {
+        throw new Error('Este consumo ya no se puede recuperar.');
+      }
+
+      if (demoMode) {
+        const amount = Math.abs(entry.quantityDelta ?? 0);
+        if (!amount) throw new Error('No se ha podido determinar la cantidad consumida.');
+        setItems((current) =>
+          current.map((candidate) =>
+            candidate.id === entry.itemId
+              ? {
+                  ...candidate,
+                  quantity: candidate.quantity + amount,
+                  status: 'active',
+                  updatedAt: new Date().toISOString(),
+                }
+              : candidate,
+          ),
+        );
+        setActivity((current) =>
+          current.map((candidate) =>
+            candidate.id === activityId ? { ...candidate, canUndo: false } : candidate,
+          ),
+        );
+        addLocalActivity({
+          itemId: entry.itemId,
+          action: 'updated',
+          itemName: entry.itemName,
+          detail: `Deshizo el consumo de ${amount} ${amount === 1 ? 'unidad' : 'unidades'}`,
+          quantityDelta: amount,
+        });
+        return;
+      }
+
+      if (!client) return;
+      const { error: rpcError } = await client.rpc('restore_consumed_inventory_event', {
+        p_event_id: activityId,
+      });
+      if (rpcError) {
+        if (rpcError.message.includes('already_restored')) {
+          throw new Error('Este consumo ya se había recuperado.');
+        }
+        throw rpcError;
+      }
+      await load();
+    },
+    [activity, addLocalActivity, client, demoMode, load],
   );
 
   const openItem = useCallback(
@@ -436,6 +496,7 @@ export function useInventoryData({ client, householdId, userId, actorName }: Opt
     reload: load,
     importPurchase,
     consume,
+    undoConsumption,
     openItem,
     discard,
     saveItem,
