@@ -1,14 +1,16 @@
-import { addDays, differenceInCalendarDays, format, isValid, parseISO } from 'date-fns';
+import { addDays, differenceInCalendarDays, endOfMonth, format, isValid, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { z } from 'zod';
 
 export const UNITS = ['unit', 'g', 'kg', 'ml', 'l', 'pack'] as const;
 export const STORAGE_LOCATIONS = ['fridge', 'freezer', 'pantry', 'other'] as const;
 export const EXPIRY_KINDS = ['use_by', 'best_before', 'unknown'] as const;
+export const EXPIRY_PRECISIONS = ['day', 'month'] as const;
 
 export type Unit = (typeof UNITS)[number];
 export type StorageLocation = (typeof STORAGE_LOCATIONS)[number];
 export type ExpiryKind = (typeof EXPIRY_KINDS)[number];
+export type ExpiryPrecision = (typeof EXPIRY_PRECISIONS)[number];
 export type InventoryStatus = 'active' | 'consumed' | 'discarded';
 
 export type InventoryItem = {
@@ -21,6 +23,7 @@ export type InventoryItem = {
   purchasedOn: string | null;
   expiresOn: string | null;
   expiryKind: ExpiryKind;
+  expiryPrecision: ExpiryPrecision;
   storageLocation: StorageLocation;
   openedOn: string | null;
   consumeWithinDaysAfterOpening: number | null;
@@ -48,20 +51,42 @@ const isoDate = z
 
 const nullableDate = z.union([isoDate, z.null()]).optional().default(null);
 
-const importedItemSchema = z.object({
-  name: z.string().trim().min(1, 'Falta el nombre').max(120),
-  quantity: z.coerce.number().positive('La cantidad debe ser mayor que cero').max(100000),
-  unit: z.enum(UNITS).default('unit'),
-  expires_on: nullableDate,
-  expiry_kind: z.enum(EXPIRY_KINDS).default('unknown'),
-  storage_location: z.enum(STORAGE_LOCATIONS).default('pantry'),
-  opened_on: nullableDate,
-  consume_within_days_after_opening: z
-    .union([z.coerce.number().int().positive().max(365), z.null()])
-    .optional()
-    .default(null),
-  notes: z.union([z.string().trim().max(500), z.null()]).optional().default(null),
-});
+const isoMonth = z
+  .string()
+  .regex(/^\d{4}-\d{2}$/, 'Usa meses con el formato AAAA-MM')
+  .refine((value) => isValid(parseISO(`${value}-01`)), 'El mes no es válido');
+
+const expiryDateInput = z.union([isoDate, isoMonth, z.null()]).optional().default(null);
+
+const importedItemSchema = z
+  .object({
+    name: z.string().trim().min(1, 'Falta el nombre').max(120),
+    quantity: z.coerce.number().positive('La cantidad debe ser mayor que cero').max(100000),
+    unit: z.enum(UNITS).default('unit'),
+    expires_on: expiryDateInput,
+    expiry_kind: z.enum(EXPIRY_KINDS).default('unknown'),
+    expiry_precision: z.enum(EXPIRY_PRECISIONS).optional(),
+    storage_location: z.enum(STORAGE_LOCATIONS).default('pantry'),
+    opened_on: nullableDate,
+    consume_within_days_after_opening: z
+      .union([z.coerce.number().int().positive().max(365), z.null()])
+      .optional()
+      .default(null),
+    notes: z.union([z.string().trim().max(500), z.null()]).optional().default(null),
+  })
+  .transform((item) => {
+    const monthOnly = Boolean(item.expires_on && /^\d{4}-\d{2}$/.test(item.expires_on));
+    const expiryPrecision: ExpiryPrecision = item.expires_on && (monthOnly || item.expiry_precision === 'month')
+      ? 'month'
+      : 'day';
+    return {
+      ...item,
+      expires_on: item.expires_on && expiryPrecision === 'month'
+        ? monthToExpiryDate(item.expires_on.slice(0, 7))
+        : item.expires_on,
+      expiry_precision: expiryPrecision,
+    };
+  });
 
 export const purchaseImportSchema = z.object({
   schema_version: z.union([z.literal('1.0'), z.literal(1)]).transform(() => '1.0' as const),
@@ -118,6 +143,17 @@ const expiryAliases: Record<string, ExpiryKind> = {
   unknown: 'unknown',
 };
 
+const expiryPrecisionAliases: Record<string, ExpiryPrecision> = {
+  day: 'day',
+  dia: 'day',
+  'día': 'day',
+  fecha: 'day',
+  month: 'month',
+  mes: 'month',
+  'mes y año': 'month',
+  month_year: 'month',
+};
+
 export function normalizeImportPayload(input: unknown): unknown {
   if (!input || typeof input !== 'object') return input;
   const record = input as Record<string, unknown>;
@@ -145,6 +181,10 @@ export function normalizeImportPayload(input: unknown): unknown {
         item.expiry_kind ?? item.tipo_caducidad,
         'unknown',
       );
+      const rawExpiryPrecision = stringValue(
+        item.expiry_precision ?? item.precision_caducidad ?? item.precisión_caducidad,
+        'day',
+      );
 
       return {
         name: item.name ?? item.nombre,
@@ -152,6 +192,7 @@ export function normalizeImportPayload(input: unknown): unknown {
         unit: unitAliases[rawUnit] ?? rawUnit,
         expires_on: item.expires_on ?? item.fecha_caducidad ?? item.caduca_el ?? null,
         expiry_kind: expiryAliases[rawExpiryKind] ?? rawExpiryKind,
+        expiry_precision: expiryPrecisionAliases[rawExpiryPrecision] ?? rawExpiryPrecision,
         storage_location: storageAliases[rawStorage] ?? rawStorage,
         opened_on: item.opened_on ?? item.abierto_el ?? null,
         consume_within_days_after_opening:
@@ -176,6 +217,7 @@ export function importedItemToInventory(
     purchasedOn,
     expiresOn: item.expires_on,
     expiryKind: item.expiry_kind,
+    expiryPrecision: item.expiry_precision,
     storageLocation: item.storage_location,
     openedOn: item.opened_on,
     consumeWithinDaysAfterOpening: item.consume_within_days_after_opening,
@@ -208,6 +250,15 @@ export const expiryKindLabels: Record<ExpiryKind, string> = {
   best_before: 'Consumo preferente',
   unknown: 'Sin especificar',
 };
+
+export const expiryPrecisionLabels: Record<ExpiryPrecision, string> = {
+  day: 'Día exacto',
+  month: 'Solo mes y año',
+};
+
+export function monthToExpiryDate(value: string): string {
+  return format(endOfMonth(parseISO(`${value.slice(0, 7)}-01`)), 'yyyy-MM-dd');
+}
 
 export function getEffectiveExpiry(item: InventoryItem): string | null {
   const dates: string[] = [];
@@ -246,8 +297,10 @@ export function formatQuantity(item: Pick<InventoryItem, 'quantity' | 'unit'>): 
   return `${amount} ${unitLabels[item.unit].short}`;
 }
 
-export function formatLongDate(value: string): string {
-  return format(parseISO(value), "d 'de' MMMM", { locale: es });
+export function formatLongDate(value: string, precision: ExpiryPrecision = 'day'): string {
+  return precision === 'month'
+    ? format(parseISO(value), "MMMM 'de' yyyy", { locale: es })
+    : format(parseISO(value), "d 'de' MMMM 'de' yyyy", { locale: es });
 }
 
 export function inventorySort(a: InventoryItem, b: InventoryItem): number {
@@ -287,6 +340,7 @@ export function createDemoInventory(): InventoryItem[] {
     purchasedOn: isoToday(),
     expiresOn: days === null ? null : relativeDate(days),
     expiryKind: 'use_by',
+    expiryPrecision: 'day',
     storageLocation,
     openedOn: null,
     consumeWithinDaysAfterOpening: null,
@@ -363,6 +417,7 @@ export const examplePurchaseJson = JSON.stringify(
         unit: 'unit',
         expires_on: relativeDate(7),
         expiry_kind: 'use_by',
+        expiry_precision: 'day',
         storage_location: 'fridge',
         opened_on: null,
         consume_within_days_after_opening: null,
@@ -374,6 +429,7 @@ export const examplePurchaseJson = JSON.stringify(
         unit: 'l',
         expires_on: relativeDate(5),
         expiry_kind: 'use_by',
+        expiry_precision: 'day',
         storage_location: 'fridge',
         opened_on: null,
         consume_within_days_after_opening: 3,
