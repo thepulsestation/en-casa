@@ -42,6 +42,8 @@ export type InventoryActivity = {
   detail: string;
   actorName: string;
   createdAt: string;
+  quantityDelta?: number;
+  canUndo?: boolean;
 };
 
 const isoDate = z
