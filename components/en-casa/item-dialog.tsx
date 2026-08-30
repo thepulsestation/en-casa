@@ -18,9 +18,12 @@ import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
 import { Textarea } from '@/components/ui/textarea';
 import {
   EXPIRY_KINDS,
+  EXPIRY_PRECISIONS,
   STORAGE_LOCATIONS,
   UNITS,
   expiryKindLabels,
+  expiryPrecisionLabels,
+  monthToExpiryDate,
   storageLabels,
   unitLabels,
   type InventoryItem,
@@ -44,6 +47,7 @@ function blankItem(): InventoryItem {
     purchasedOn: now.slice(0, 10),
     expiresOn: null,
     expiryKind: 'unknown',
+    expiryPrecision: 'day',
     storageLocation: 'fridge',
     openedOn: null,
     consumeWithinDaysAfterOpening: null,
@@ -138,13 +142,41 @@ export function ItemDialog({ open, onOpenChange, item, onSave }: Props) {
             </NativeSelect>
           </div>
           <div className="space-y-2">
-            <Label htmlFor="item-expiry">Fecha</Label>
+            <Label htmlFor="item-expiry-precision">Formato de fecha</Label>
+            <NativeSelect
+              className="w-full"
+              value={draft.expiryPrecision}
+              onChange={(event) => {
+                const expiryPrecision = event.target.value as InventoryItem['expiryPrecision'];
+                setDraft({
+                  ...draft,
+                  expiryPrecision,
+                  expiresOn: draft.expiresOn && expiryPrecision === 'month'
+                    ? monthToExpiryDate(draft.expiresOn.slice(0, 7))
+                    : draft.expiresOn,
+                });
+              }}
+            >
+              {EXPIRY_PRECISIONS.map((precision) => (
+                <NativeSelectOption key={precision} value={precision}>{expiryPrecisionLabels[precision]}</NativeSelectOption>
+              ))}
+            </NativeSelect>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="item-expiry">{draft.expiryPrecision === 'month' ? 'Mes y año' : 'Fecha'}</Label>
             <Input
               id="item-expiry"
-              type="date"
+              type={draft.expiryPrecision === 'month' ? 'month' : 'date'}
               className="h-10 rounded-xl"
-              value={draft.expiresOn ?? ''}
-              onChange={(event) => setDraft({ ...draft, expiresOn: event.target.value || null })}
+              value={draft.expiryPrecision === 'month' ? draft.expiresOn?.slice(0, 7) ?? '' : draft.expiresOn ?? ''}
+              onChange={(event) => setDraft({
+                ...draft,
+                expiresOn: event.target.value
+                  ? draft.expiryPrecision === 'month'
+                    ? monthToExpiryDate(event.target.value)
+                    : event.target.value
+                  : null,
+              })}
             />
           </div>
           <div className="space-y-2">
