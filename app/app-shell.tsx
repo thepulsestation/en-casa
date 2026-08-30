@@ -15,6 +15,7 @@ import {
   Edit3,
   Home,
   Loader2,
+  MapPin,
   PackageOpen,
   Plus,
   ScanLine,
@@ -204,11 +205,12 @@ function TodayView({ items, onViewInventory, onImport, actions }: {
         )}
       </section>
 
-      <section className="mt-8 grid gap-4 sm:grid-cols-3" aria-label="Resumen del inventario">
+      <section className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4" aria-label="Resumen del inventario">
         {([
           { label: 'Nevera', location: 'fridge' as const, icon: Snowflake, color: 'bg-[#e7f3f4] text-[#317179]' },
           { label: 'Congelador', location: 'freezer' as const, icon: Snowflake, color: 'bg-[#e9eef8] text-[#50689b]' },
           { label: 'Despensa', location: 'pantry' as const, icon: PackageOpen, color: 'bg-[#f3ecdd] text-[#846936]' },
+          { label: 'Otro', location: 'other' as const, icon: MapPin, color: 'bg-[#eee9f5] text-[#6f5a8d]' },
         ]).map(({ label, location, icon: Icon, color }) => {
           const count = items.filter((item) => item.storageLocation === location).length;
           return <button key={label} className="flex items-center gap-3 rounded-[18px] border border-border bg-card p-4 text-left shadow-[0_8px_24px_rgb(44_45_40/4%)] hover:border-primary/30" type="button" onClick={onViewInventory}><span className={`grid size-10 place-items-center rounded-xl ${color}`}><Icon className="size-5" /></span><span><span className="block text-sm font-extrabold">{label}</span><span className="mt-0.5 block text-xs text-muted-foreground">{count} {count === 1 ? 'producto' : 'productos'}</span></span><ChevronRight className="ml-auto size-4 text-muted-foreground" /></button>;
@@ -243,7 +245,7 @@ function InventoryView({ items, actions, onAdd }: { items: InventoryItem[]; acti
       <div className="mt-6 flex flex-col gap-3 rounded-2xl border border-border bg-card p-3 sm:flex-row">
         <div className="relative min-w-0 flex-1"><Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" /><Input className="h-10 rounded-xl border-0 bg-muted/55 pl-9 shadow-none" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar un producto…" />{query && <button type="button" aria-label="Borrar búsqueda" className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground" onClick={() => setQuery('')}><X className="size-4" /></button>}</div>
         <div className="flex gap-1.5 overflow-x-auto pb-1 sm:pb-0">
-          {([{ id: 'all', label: 'Todo' }, { id: 'fridge', label: 'Nevera' }, { id: 'freezer', label: 'Congelador' }, { id: 'pantry', label: 'Despensa' }] as const).map((filter) => <button key={filter.id} type="button" className={`h-10 shrink-0 rounded-xl px-3 text-xs font-extrabold ${location === filter.id ? 'bg-primary text-primary-foreground' : 'bg-muted/60 text-muted-foreground hover:text-foreground'}`} onClick={() => setLocation(filter.id)}>{filter.label}</button>)}
+          {([{ id: 'all', label: 'Todo' }, { id: 'fridge', label: 'Nevera' }, { id: 'freezer', label: 'Congelador' }, { id: 'pantry', label: 'Despensa' }, { id: 'other', label: 'Otro' }] as const).map((filter) => <button key={filter.id} type="button" className={`h-10 shrink-0 rounded-xl px-3 text-xs font-extrabold ${location === filter.id ? 'bg-primary text-primary-foreground' : 'bg-muted/60 text-muted-foreground hover:text-foreground'}`} onClick={() => setLocation(filter.id)}>{filter.label}</button>)}
         </div>
       </div>
       {filtered.length ? <div className="mt-5 grid gap-3 md:grid-cols-2">{filtered.map((item) => <InventoryCard key={item.id} item={item} onConsume={() => actions.consume(item.id)} onOpen={() => actions.open(item.id)} onEdit={() => actions.edit(item)} onDiscard={() => actions.discard(item)} />)}</div> : <div className="mt-5 rounded-2xl border border-border bg-card p-10 text-center"><Search className="mx-auto size-7 text-muted-foreground" /><p className="mt-3 text-sm font-extrabold">No hay resultados</p><p className="mt-1 text-xs text-muted-foreground">Prueba otra búsqueda o ubicación.</p></div>}
