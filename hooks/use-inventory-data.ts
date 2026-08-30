@@ -35,6 +35,7 @@ type DbInventoryRow = {
   purchased_on: string | null;
   expires_on: string | null;
   expiry_kind: InventoryItem['expiryKind'];
+  expiry_precision: InventoryItem['expiryPrecision'];
   storage_location: InventoryItem['storageLocation'];
   opened_on: string | null;
   consume_within_days_after_opening: number | null;
@@ -56,6 +57,7 @@ function fromDbRow(row: DbInventoryRow): InventoryItem {
     purchasedOn: row.purchased_on,
     expiresOn: row.expires_on,
     expiryKind: row.expiry_kind,
+    expiryPrecision: row.expiry_precision ?? 'day',
     storageLocation: row.storage_location,
     openedOn: row.opened_on,
     consumeWithinDaysAfterOpening: row.consume_within_days_after_opening,
@@ -209,6 +211,7 @@ export function useInventoryData({ client, householdId, userId, actorName }: Opt
         purchased_on: item.purchasedOn,
         expires_on: item.expiresOn,
         expiry_kind: item.expiryKind,
+        expiry_precision: item.expiryPrecision,
         storage_location: item.storageLocation,
         opened_on: item.openedOn,
         consume_within_days_after_opening: item.consumeWithinDaysAfterOpening,
@@ -380,6 +383,7 @@ export function useInventoryData({ client, householdId, userId, actorName }: Opt
         purchased_on: item.purchasedOn,
         expires_on: item.expiresOn,
         expiry_kind: item.expiryKind,
+        expiry_precision: item.expiryPrecision,
         storage_location: item.storageLocation,
         opened_on: item.openedOn,
         consume_within_days_after_opening: item.consumeWithinDaysAfterOpening,
