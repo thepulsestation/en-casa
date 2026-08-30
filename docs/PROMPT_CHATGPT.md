@@ -15,8 +15,9 @@ Escucha o lee todo lo que he comprado y devuelve únicamente un objeto JSON vál
       "name": "Nombre claro del producto",
       "quantity": 1,
       "unit": "unit | g | kg | ml | l | pack",
-      "expires_on": "AAAA-MM-DD o null",
+      "expires_on": "AAAA-MM-DD, AAAA-MM o null",
       "expiry_kind": "use_by | best_before | unknown",
+      "expiry_precision": "day | month",
       "storage_location": "fridge | freezer | pantry | other",
       "opened_on": null,
       "consume_within_days_after_opening": null,
@@ -27,7 +28,8 @@ Escucha o lee todo lo que he comprado y devuelve únicamente un objeto JSON vál
 
 Reglas:
 - Separa en lotes distintos los productos con fechas de caducidad diferentes.
-- Convierte todas las fechas al formato AAAA-MM-DD.
+- Si conozco el día exacto, usa expires_on en formato AAAA-MM-DD y expiry_precision "day".
+- Si el envase solo indica mes y año (por ejemplo, 12/27), usa expires_on "2027-12" y expiry_precision "month". No inventes un día.
 - Si digo “caduca”, usa expiry_kind "use_by".
 - Si digo “consumo preferente”, usa "best_before".
 - Si no conozco la fecha o el tipo, usa null o "unknown"; no lo inventes.
