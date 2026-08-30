@@ -52,6 +52,7 @@ create table public.inventory_batches (
   purchased_on date,
   expires_on date,
   expiry_kind public.expiry_kind not null default 'unknown',
+  expiry_precision text not null default 'day' check (expiry_precision in ('day', 'month')),
   storage_location public.storage_location not null default 'pantry',
   opened_on date,
   consume_within_days_after_opening integer check (consume_within_days_after_opening between 1 and 365),
@@ -322,11 +323,11 @@ begin
     update public.inventory_batches set quantity = quantity - 1 where id = p_batch_id;
     insert into public.inventory_batches (
       household_id, name, quantity, initial_quantity, unit, purchased_on, expires_on,
-      expiry_kind, storage_location, opened_on, consume_within_days_after_opening,
+      expiry_kind, expiry_precision, storage_location, opened_on, consume_within_days_after_opening,
       notes, status, created_by
     ) values (
       v_item.household_id, v_item.name, 1, 1, v_item.unit, v_item.purchased_on, v_item.expires_on,
-      v_item.expiry_kind, v_item.storage_location, current_date, v_item.consume_within_days_after_opening,
+      v_item.expiry_kind, v_item.expiry_precision, v_item.storage_location, current_date, v_item.consume_within_days_after_opening,
       v_item.notes, 'active', auth.uid()
     ) returning id into v_opened_id;
   else
