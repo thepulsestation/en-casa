@@ -38,6 +38,7 @@ type DbInventoryRow = {
   expiry_kind: InventoryItem['expiryKind'];
   expiry_precision: InventoryItem['expiryPrecision'];
   storage_location: InventoryItem['storageLocation'];
+  tracks_opened_state: boolean;
   opened_on: string | null;
   consume_within_days_after_opening: number | null;
   notes: string | null;
@@ -61,6 +62,8 @@ function fromDbRow(row: DbInventoryRow): InventoryItem {
     expiryKind: row.expiry_kind,
     expiryPrecision: row.expiry_precision ?? 'day',
     storageLocation: row.storage_location,
+    tracksOpenedState:
+      row.tracks_opened_state ?? Boolean(row.consume_within_days_after_opening),
     openedOn: row.opened_on,
     consumeWithinDaysAfterOpening: row.consume_within_days_after_opening,
     notes: row.notes,
@@ -81,7 +84,12 @@ function readDemoState<T>(key: string, fallback: () => T): T {
   }
 }
 
-export function useInventoryData({ client, householdId, userId, actorName }: Options) {
+export function useInventoryData({
+  client,
+  householdId,
+  userId,
+  actorName,
+}: Options) {
   const demoMode = !client;
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [activity, setActivity] = useState<InventoryActivity[]>([]);
@@ -136,12 +144,13 @@ export function useInventoryData({ client, householdId, userId, actorName }: Opt
           detail: row.detail,
           actorName: row.actor_name || 'Alguien de casa',
           createdAt: row.created_at,
-          quantityDelta: row.quantity_delta == null ? undefined : Number(row.quantity_delta),
+          quantityDelta:
+            row.quantity_delta == null ? undefined : Number(row.quantity_delta),
           canUndo:
-            row.action === 'consumed'
-            && Number(row.quantity_delta) < 0
-            && !row.metadata?.restored_at
-            && row.batch_status !== 'discarded',
+            row.action === 'consumed' &&
+            Number(row.quantity_delta) < 0 &&
+            !row.metadata?.restored_at &&
+            row.batch_status !== 'discarded',
         })),
       );
     }
@@ -164,12 +173,22 @@ export function useInventoryData({ client, householdId, userId, actorName }: Opt
       .channel(`inventory:${householdId}`)
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'inventory_batches', filter: `household_id=eq.${householdId}` },
+        {
+          event: '*',
+          schema: 'public',
+          table: 'inventory_batches',
+          filter: `household_id=eq.${householdId}`,
+        },
         () => void load(),
       )
       .on(
         'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'inventory_events', filter: `household_id=eq.${householdId}` },
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'inventory_events',
+          filter: `household_id=eq.${householdId}`,
+        },
         () => void load(),
       )
       .subscribe();
@@ -209,7 +228,8 @@ export function useInventoryData({ client, householdId, userId, actorName }: Opt
         return;
       }
 
-      if (!client || !householdId || !userId) throw new Error('No hay una casa seleccionada.');
+      if (!client || !householdId || !userId)
+        throw new Error('No hay una casa seleccionada.');
       const rows = imported.map((item) => ({
         household_id: householdId,
         source_batch_id: item.sourceBatchId,
@@ -222,12 +242,15 @@ export function useInventoryData({ client, householdId, userId, actorName }: Opt
         expiry_kind: item.expiryKind,
         expiry_precision: item.expiryPrecision,
         storage_location: item.storageLocation,
+        tracks_opened_state: item.tracksOpenedState,
         opened_on: item.openedOn,
         consume_within_days_after_opening: item.consumeWithinDaysAfterOpening,
         notes: item.notes,
         created_by: userId,
       }));
-      const { error: insertError } = await client.from('inventory_batches').insert(rows);
+      const { error: insertError } = await client
+        .from('inventory_batches')
+        .insert(rows);
       if (insertError) throw insertError;
       await client.from('inventory_events').insert({
         household_id: householdId,
@@ -254,7 +277,8 @@ export function useInventoryData({ client, householdId, userId, actorName }: Opt
               ? {
                   ...candidate,
                   quantity: Math.max(0, candidate.quantity - amount),
-                  status: candidate.quantity - amount <= 0 ? 'consumed' : 'active',
+                  status:
+                    candidate.quantity - amount <= 0 ? 'consumed' : 'active',
                   updatedAt: new Date().toISOString(),
                 }
               : candidate,
@@ -285,13 +309,19 @@ export function useInventoryData({ client, householdId, userId, actorName }: Opt
   const undoConsumption = useCallback(
     async (activityId: string) => {
       const entry = activity.find((candidate) => candidate.id === activityId);
-      if (!entry || entry.action !== 'consumed' || !entry.canUndo || !entry.itemId) {
+      if (
+        !entry ||
+        entry.action !== 'consumed' ||
+        !entry.canUndo ||
+        !entry.itemId
+      ) {
         throw new Error('Este consumo ya no se puede recuperar.');
       }
 
       if (demoMode) {
         const amount = Math.abs(entry.quantityDelta ?? 0);
-        if (!amount) throw new Error('No se ha podido determinar la cantidad consumida.');
+        if (!amount)
+          throw new Error('No se ha podido determinar la cantidad consumida.');
         setItems((current) =>
           current.map((candidate) =>
             candidate.id === entry.itemId
@@ -306,7 +336,9 @@ export function useInventoryData({ client, householdId, userId, actorName }: Opt
         );
         setActivity((current) =>
           current.map((candidate) =>
-            candidate.id === activityId ? { ...candidate, canUndo: false } : candidate,
+            candidate.id === activityId
+              ? { ...candidate, canUndo: false }
+              : candidate,
           ),
         );
         addLocalActivity({
@@ -320,9 +352,12 @@ export function useInventoryData({ client, householdId, userId, actorName }: Opt
       }
 
       if (!client) return;
-      const { error: rpcError } = await client.rpc('restore_consumed_inventory_event', {
-        p_event_id: activityId,
-      });
+      const { error: rpcError } = await client.rpc(
+        'restore_consumed_inventory_event',
+        {
+          p_event_id: activityId,
+        },
+      );
       if (rpcError) {
         if (rpcError.message.includes('already_restored')) {
           throw new Error('Este consumo ya se había recuperado.');
@@ -337,11 +372,14 @@ export function useInventoryData({ client, householdId, userId, actorName }: Opt
   const openItem = useCallback(
     async (id: string) => {
       const item = items.find((candidate) => candidate.id === id);
-      if (!item || item.openedOn || !item.consumeWithinDaysAfterOpening) return;
+      if (!item || item.openedOn || !item.tracksOpenedState) return;
       const today = format(new Date(), 'yyyy-MM-dd');
 
       if (demoMode) {
-        if ((item.unit === 'unit' || item.unit === 'pack') && item.quantity > 1) {
+        if (
+          (item.unit === 'unit' || item.unit === 'pack') &&
+          item.quantity > 1
+        ) {
           const openedItem: InventoryItem = {
             ...item,
             id: crypto.randomUUID(),
@@ -356,7 +394,11 @@ export function useInventoryData({ client, householdId, userId, actorName }: Opt
             openedItem,
             ...current.map((candidate) =>
               candidate.id === id
-                ? { ...candidate, quantity: candidate.quantity - 1, updatedAt: new Date().toISOString() }
+                ? {
+                    ...candidate,
+                    quantity: candidate.quantity - 1,
+                    updatedAt: new Date().toISOString(),
+                  }
                 : candidate,
             ),
           ]);
@@ -364,7 +406,11 @@ export function useInventoryData({ client, householdId, userId, actorName }: Opt
           setItems((current) =>
             current.map((candidate) =>
               candidate.id === id
-                ? { ...candidate, openedOn: today, updatedAt: new Date().toISOString() }
+                ? {
+                    ...candidate,
+                    openedOn: today,
+                    updatedAt: new Date().toISOString(),
+                  }
                 : candidate,
             ),
           );
@@ -373,13 +419,44 @@ export function useInventoryData({ client, householdId, userId, actorName }: Opt
           itemId: id,
           action: 'opened',
           itemName: item.name,
-          detail: item.quantity > 1 ? 'Abrió una unidad' : 'Marcó el producto como abierto',
+          detail:
+            item.quantity > 1
+              ? 'Abrió una unidad'
+              : 'Marcó el producto como abierto',
         });
         return;
       }
 
       if (!client) return;
-      const { error: rpcError } = await client.rpc('open_inventory_item', { p_batch_id: id });
+      const { error: rpcError } = await client.rpc('open_inventory_item', {
+        p_batch_id: id,
+      });
+      if (rpcError) throw rpcError;
+      await load();
+    },
+    [addLocalActivity, client, demoMode, items, load],
+  );
+
+  const useOpenItem = useCallback(
+    async (id: string) => {
+      const item = items.find((candidate) => candidate.id === id);
+      if (!item || !item.openedOn || !item.tracksOpenedState) return;
+
+      if (demoMode) {
+        addLocalActivity({
+          itemId: id,
+          action: 'consumed',
+          itemName: item.name,
+          detail: 'Usó un poco; el envase sigue abierto',
+          quantityDelta: 0,
+        });
+        return;
+      }
+
+      if (!client) return;
+      const { error: rpcError } = await client.rpc('use_open_inventory_item', {
+        p_batch_id: id,
+      });
       if (rpcError) throw rpcError;
       await load();
     },
@@ -394,7 +471,11 @@ export function useInventoryData({ client, householdId, userId, actorName }: Opt
         setItems((current) =>
           current.map((candidate) =>
             candidate.id === id
-              ? { ...candidate, status: 'discarded', updatedAt: new Date().toISOString() }
+              ? {
+                  ...candidate,
+                  status: 'discarded',
+                  updatedAt: new Date().toISOString(),
+                }
               : candidate,
           ),
         );
@@ -407,7 +488,9 @@ export function useInventoryData({ client, householdId, userId, actorName }: Opt
         return;
       }
       if (!client) return;
-      const { error: rpcError } = await client.rpc('discard_inventory_item', { p_batch_id: id });
+      const { error: rpcError } = await client.rpc('discard_inventory_item', {
+        p_batch_id: id,
+      });
       if (rpcError) throw rpcError;
       await load();
     },
@@ -425,11 +508,20 @@ export function useInventoryData({ client, householdId, userId, actorName }: Opt
                   ? { ...item, updatedAt: new Date().toISOString() }
                   : candidate,
               )
-            : [{ ...item, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }, ...current];
+            : [
+                {
+                  ...item,
+                  createdAt: new Date().toISOString(),
+                  updatedAt: new Date().toISOString(),
+                },
+                ...current,
+              ];
         });
         addLocalActivity({
           itemId: item.id,
-          action: items.some((candidate) => candidate.id === item.id) ? 'updated' : 'created',
+          action: items.some((candidate) => candidate.id === item.id)
+            ? 'updated'
+            : 'created',
           itemName: item.name,
           detail: items.some((candidate) => candidate.id === item.id)
             ? 'Actualizó los datos del producto'
@@ -450,6 +542,7 @@ export function useInventoryData({ client, householdId, userId, actorName }: Opt
         expiry_kind: item.expiryKind,
         expiry_precision: item.expiryPrecision,
         storage_location: item.storageLocation,
+        tracks_opened_state: item.tracksOpenedState,
         opened_on: item.openedOn,
         consume_within_days_after_opening: item.consumeWithinDaysAfterOpening,
         notes: item.notes,
@@ -459,16 +552,22 @@ export function useInventoryData({ client, householdId, userId, actorName }: Opt
       const existing = items.some((candidate) => candidate.id === item.id);
       const result = existing
         ? await client.from('inventory_batches').update(row).eq('id', item.id)
-        : await client.from('inventory_batches').insert({ ...row, id: item.id });
+        : await client
+            .from('inventory_batches')
+            .insert({ ...row, id: item.id });
       if (result.error) throw result.error;
-      const { error: eventError } = await client.from('inventory_events').insert({
-        household_id: householdId,
-        batch_id: item.id,
-        user_id: userId,
-        action: existing ? 'updated' : 'created',
-        item_name: item.name,
-        detail: existing ? 'Actualizó los datos del producto' : 'Añadió el producto manualmente',
-      });
+      const { error: eventError } = await client
+        .from('inventory_events')
+        .insert({
+          household_id: householdId,
+          batch_id: item.id,
+          user_id: userId,
+          action: existing ? 'updated' : 'created',
+          item_name: item.name,
+          detail: existing
+            ? 'Actualizó los datos del producto'
+            : 'Añadió el producto manualmente',
+        });
       if (eventError) throw eventError;
       await load();
     },
@@ -482,13 +581,22 @@ export function useInventoryData({ client, householdId, userId, actorName }: Opt
     setItems(demoItems);
     setActivity(demoActivity);
     if (typeof window !== 'undefined') {
-      window.localStorage.setItem(DEMO_INVENTORY_KEY, JSON.stringify(demoItems));
-      window.localStorage.setItem(DEMO_ACTIVITY_KEY, JSON.stringify(demoActivity));
+      window.localStorage.setItem(
+        DEMO_INVENTORY_KEY,
+        JSON.stringify(demoItems),
+      );
+      window.localStorage.setItem(
+        DEMO_ACTIVITY_KEY,
+        JSON.stringify(demoActivity),
+      );
     }
   }, [demoMode]);
 
   const activeItems = useMemo(
-    () => items.filter((item) => item.status === 'active' && item.quantity > 0).sort(inventorySort),
+    () =>
+      items
+        .filter((item) => item.status === 'active' && item.quantity > 0)
+        .sort(inventorySort),
     [items],
   );
 
@@ -503,6 +611,7 @@ export function useInventoryData({ client, householdId, userId, actorName }: Opt
     consume,
     undoConsumption,
     openItem,
+    useOpenItem,
     discard,
     saveItem,
     resetDemo,
