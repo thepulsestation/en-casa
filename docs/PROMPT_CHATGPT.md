@@ -36,6 +36,7 @@ Reglas:
 - Nevera es "fridge", congelador es "freezer" y despensa es "pantry".
 - Si el producto ya está abierto, registra la fecha en opened_on.
 - Si digo que dura, por ejemplo, tres días después de abrir, usa consume_within_days_after_opening: 3.
+- Usa consume_within_days_after_opening solo cuando el producto seguirá guardado tras abrirlo y exista un plazo útil de consumo. Para huevos, piezas sueltas o productos que se consumen enteros, usa null.
 - Conserva detalles útiles como sabor, marca o tamaño dentro de notes.
 - Antes de responder, comprueba que el resultado puede analizarse como JSON.
 ```
