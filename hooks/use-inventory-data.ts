@@ -28,6 +28,7 @@ type Options = {
 type DbInventoryRow = {
   id: string;
   household_id: string;
+  source_batch_id: string | null;
   name: string;
   quantity: number | string;
   initial_quantity: number | string;
@@ -50,6 +51,7 @@ function fromDbRow(row: DbInventoryRow): InventoryItem {
   return {
     id: row.id,
     householdId: row.household_id,
+    sourceBatchId: row.source_batch_id ?? null,
     name: row.name,
     quantity: Number(row.quantity),
     initialQuantity: Number(row.initial_quantity),
@@ -210,6 +212,7 @@ export function useInventoryData({ client, householdId, userId, actorName }: Opt
       if (!client || !householdId || !userId) throw new Error('No hay una casa seleccionada.');
       const rows = imported.map((item) => ({
         household_id: householdId,
+        source_batch_id: item.sourceBatchId,
         name: item.name,
         quantity: item.quantity,
         initial_quantity: item.initialQuantity,
@@ -334,7 +337,7 @@ export function useInventoryData({ client, householdId, userId, actorName }: Opt
   const openItem = useCallback(
     async (id: string) => {
       const item = items.find((candidate) => candidate.id === id);
-      if (!item || item.openedOn) return;
+      if (!item || item.openedOn || !item.consumeWithinDaysAfterOpening) return;
       const today = format(new Date(), 'yyyy-MM-dd');
 
       if (demoMode) {
@@ -342,6 +345,7 @@ export function useInventoryData({ client, householdId, userId, actorName }: Opt
           const openedItem: InventoryItem = {
             ...item,
             id: crypto.randomUUID(),
+            sourceBatchId: item.sourceBatchId ?? item.id,
             quantity: 1,
             initialQuantity: 1,
             openedOn: today,
@@ -436,6 +440,7 @@ export function useInventoryData({ client, householdId, userId, actorName }: Opt
       if (!client || !householdId || !userId) return;
       const row = {
         household_id: householdId,
+        source_batch_id: item.sourceBatchId,
         name: item.name,
         quantity: item.quantity,
         initial_quantity: item.initialQuantity,
