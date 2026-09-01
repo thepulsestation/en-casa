@@ -1,7 +1,13 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { AlertCircle, CheckCircle2, ClipboardPaste, PackageCheck, Trash2 } from 'lucide-react';
+import {
+  AlertCircle,
+  CheckCircle2,
+  ClipboardPaste,
+  PackageCheck,
+  Trash2,
+} from 'lucide-react';
 import { ZodError } from 'zod';
 
 import { Badge } from '@/components/ui/badge';
@@ -15,6 +21,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
+import { ProductThumbnail } from '@/components/en-casa/product-thumbnail';
 import {
   examplePurchaseJson,
   expiryKindLabels,
@@ -34,16 +41,24 @@ type Props = {
 };
 
 function readableError(error: unknown): string {
-  if (error instanceof SyntaxError) return 'El texto no es un JSON válido. Revisa comas, llaves y comillas.';
+  if (error instanceof SyntaxError)
+    return 'El texto no es un JSON válido. Revisa comas, llaves y comillas.';
   if (error instanceof ZodError) {
     const first = error.issues[0];
     const where = first.path.length ? ` (${first.path.join(' → ')})` : '';
     return `${first.message}${where}`;
   }
-  return error instanceof Error ? error.message : 'No se ha podido revisar el JSON.';
+  return error instanceof Error
+    ? error.message
+    : 'No se ha podido revisar el JSON.';
 }
 
-export function ImportPurchaseDialog({ open, onOpenChange, existingNames, onImport }: Props) {
+export function ImportPurchaseDialog({
+  open,
+  onOpenChange,
+  existingNames,
+  onImport,
+}: Props) {
   const [rawJson, setRawJson] = useState('');
   const [purchase, setPurchase] = useState<PurchaseImport | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -51,10 +66,14 @@ export function ImportPurchaseDialog({ open, onOpenChange, existingNames, onImpo
 
   const duplicateNames = useMemo(() => {
     if (!purchase) return new Set<string>();
-    const existing = new Set(existingNames.map((name) => name.trim().toLocaleLowerCase('es')));
+    const existing = new Set(
+      existingNames.map((name) => name.trim().toLocaleLowerCase('es')),
+    );
     return new Set(
       purchase.items
-        .filter((item) => existing.has(item.name.trim().toLocaleLowerCase('es')))
+        .filter((item) =>
+          existing.has(item.name.trim().toLocaleLowerCase('es')),
+        )
         .map((item) => item.name),
     );
   }, [existingNames, purchase]);
@@ -63,7 +82,9 @@ export function ImportPurchaseDialog({ open, onOpenChange, existingNames, onImpo
     setError(null);
     try {
       const parsedJson = JSON.parse(rawJson);
-      setPurchase(purchaseImportSchema.parse(normalizeImportPayload(parsedJson)));
+      setPurchase(
+        purchaseImportSchema.parse(normalizeImportPayload(parsedJson)),
+      );
     } catch (caught) {
       setPurchase(null);
       setError(readableError(caught));
@@ -107,9 +128,12 @@ export function ImportPurchaseDialog({ open, onOpenChange, existingNames, onImpo
           <div className="mb-1 grid size-11 place-items-center rounded-2xl bg-primary/10 text-primary">
             <ClipboardPaste className="size-5" />
           </div>
-          <DialogTitle className="text-xl font-extrabold tracking-[-0.03em]">Importar la compra</DialogTitle>
+          <DialogTitle className="text-xl font-extrabold tracking-[-0.03em]">
+            Importar la compra
+          </DialogTitle>
           <DialogDescription className="leading-5">
-            Pega el JSON que te ha preparado ChatGPT. Nada se guardará hasta que revises la vista previa.
+            Pega el JSON que te ha preparado ChatGPT. Nada se guardará hasta que
+            revises la vista previa.
           </DialogDescription>
         </DialogHeader>
 
@@ -134,7 +158,11 @@ export function ImportPurchaseDialog({ open, onOpenChange, existingNames, onImpo
               >
                 Cargar un ejemplo
               </Button>
-              <Button className="h-10 rounded-xl px-4 font-bold" disabled={!rawJson.trim()} onClick={analyze}>
+              <Button
+                className="h-10 rounded-xl px-4 font-bold"
+                disabled={!rawJson.trim()}
+                onClick={analyze}
+              >
                 Revisar productos
               </Button>
             </div>
@@ -146,7 +174,8 @@ export function ImportPurchaseDialog({ open, onOpenChange, existingNames, onImpo
               <div>
                 <p className="text-sm font-extrabold">El formato es correcto</p>
                 <p className="mt-1 text-xs leading-5 text-muted-foreground">
-                  Revisa cantidades, ubicaciones y fechas antes de añadir {purchase.items.length}{' '}
+                  Revisa cantidades, ubicaciones y fechas antes de añadir{' '}
+                  {purchase.items.length}{' '}
                   {purchase.items.length === 1 ? 'producto' : 'productos'}.
                 </p>
               </div>
@@ -154,34 +183,52 @@ export function ImportPurchaseDialog({ open, onOpenChange, existingNames, onImpo
 
             <div className="space-y-2">
               {purchase.items.map((item, index) => (
-                <article key={`${item.name}-${index}`} className="rounded-2xl border border-border bg-card p-3.5">
+                <article
+                  key={`${item.name}-${index}`}
+                  className="rounded-2xl border border-border bg-card p-3.5"
+                >
                   <div className="flex items-start gap-3">
-                    <div className="grid size-10 shrink-0 place-items-center rounded-xl bg-muted text-lg">🛒</div>
+                    <ProductThumbnail name={item.name} size="sm" />
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
                         <h3 className="font-extrabold">{item.name}</h3>
                         {duplicateNames.has(item.name) && (
-                          <Badge variant="outline" className="border-[#c79542]/35 bg-[#fff8e8] text-[#8a5f18]">
+                          <Badge
+                            variant="outline"
+                            className="border-[#c79542]/35 bg-[#fff8e8] text-[#8a5f18]"
+                          >
                             Ya existe otro lote
                           </Badge>
                         )}
                       </div>
                       <p className="mt-1 text-xs text-muted-foreground">
-                        {formatQuantity({ quantity: item.quantity, unit: item.unit })} ·{' '}
-                        {storageLabels[item.storage_location]}
+                        {formatQuantity({
+                          quantity: item.quantity,
+                          unit: item.unit,
+                        })}{' '}
+                        · {storageLabels[item.storage_location]}
                       </p>
                       <div className="mt-2 flex flex-wrap gap-1.5">
                         <Badge variant="secondary" className="font-medium">
-                          {item.expires_on ? `Fecha: ${formatLongDate(item.expires_on, item.expiry_precision)}` : 'Sin fecha'}
+                          {item.expires_on
+                            ? `Fecha: ${formatLongDate(item.expires_on, item.expiry_precision)}`
+                            : 'Sin fecha'}
                         </Badge>
                         <Badge variant="secondary" className="font-medium">
                           {expiryKindLabels[item.expiry_kind]}
                         </Badge>
                         {item.consume_within_days_after_opening && (
                           <Badge variant="secondary" className="font-medium">
-                            {item.consume_within_days_after_opening} días al abrir
+                            {item.consume_within_days_after_opening} días al
+                            abrir
                           </Badge>
                         )}
+                        {item.track_after_opening &&
+                          !item.consume_within_days_after_opening && (
+                            <Badge variant="secondary" className="font-medium">
+                              Se guarda abierto
+                            </Badge>
+                          )}
                       </div>
                     </div>
                     <Button
@@ -200,7 +247,10 @@ export function ImportPurchaseDialog({ open, onOpenChange, existingNames, onImpo
         )}
 
         {error && (
-          <div role="alert" className="flex items-start gap-2.5 rounded-xl bg-destructive/8 p-3 text-sm text-destructive">
+          <div
+            role="alert"
+            className="flex items-start gap-2.5 rounded-xl bg-destructive/8 p-3 text-sm text-destructive"
+          >
             <AlertCircle className="mt-0.5 size-4 shrink-0" />
             <p>{error}</p>
           </div>
@@ -208,12 +258,23 @@ export function ImportPurchaseDialog({ open, onOpenChange, existingNames, onImpo
 
         {purchase && (
           <DialogFooter className="mt-1 -mx-5 -mb-5 px-5 sm:-mx-6 sm:-mb-6 sm:px-6">
-            <Button variant="outline" className="h-10 rounded-xl" disabled={busy} onClick={() => setPurchase(null)}>
+            <Button
+              variant="outline"
+              className="h-10 rounded-xl"
+              disabled={busy}
+              onClick={() => setPurchase(null)}
+            >
               Volver al JSON
             </Button>
-            <Button className="h-10 rounded-xl px-4 font-bold" disabled={busy} onClick={() => void confirm()}>
+            <Button
+              className="h-10 rounded-xl px-4 font-bold"
+              disabled={busy}
+              onClick={() => void confirm()}
+            >
               <PackageCheck className="size-4" />
-              {busy ? 'Guardando…' : `Añadir ${purchase.items.length} productos`}
+              {busy
+                ? 'Guardando…'
+                : `Añadir ${purchase.items.length} productos`}
             </Button>
           </DialogFooter>
         )}

@@ -14,7 +14,10 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select';
+import {
+  NativeSelect,
+  NativeSelectOption,
+} from '@/components/ui/native-select';
 import { Textarea } from '@/components/ui/textarea';
 import {
   EXPIRY_KINDS,
@@ -50,6 +53,7 @@ function blankItem(): InventoryItem {
     expiryKind: 'unknown',
     expiryPrecision: 'day',
     storageLocation: 'fridge',
+    tracksOpenedState: false,
     openedOn: null,
     consumeWithinDaysAfterOpening: null,
     notes: null,
@@ -90,7 +94,11 @@ export function ItemDialog({ open, onOpenChange, item, onSave }: Props) {
       });
       onOpenChange(false);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'No se ha podido guardar el producto.');
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : 'No se ha podido guardar el producto.',
+      );
     } finally {
       setBusy(false);
     }
@@ -101,7 +109,11 @@ export function ItemDialog({ open, onOpenChange, item, onSave }: Props) {
       <DialogContent className="max-h-[calc(100dvh-1rem)] w-[calc(100%-1rem)] max-w-lg overflow-y-auto rounded-[24px] p-5 sm:p-6">
         <DialogHeader className="pr-8">
           <div className="mb-1 grid size-11 place-items-center rounded-2xl bg-primary/10 text-primary">
-            {item ? <CalendarClock className="size-5" /> : <PackagePlus className="size-5" />}
+            {item ? (
+              <CalendarClock className="size-5" />
+            ) : (
+              <PackagePlus className="size-5" />
+            )}
           </div>
           <DialogTitle className="text-xl font-extrabold tracking-[-0.03em]">
             {item ? 'Editar producto' : 'Añadir producto'}
@@ -118,7 +130,9 @@ export function ItemDialog({ open, onOpenChange, item, onSave }: Props) {
               id="item-name"
               className="h-10 rounded-xl"
               value={draft.name}
-              onChange={(event) => setDraft({ ...draft, name: event.target.value })}
+              onChange={(event) =>
+                setDraft({ ...draft, name: event.target.value })
+              }
               placeholder="Por ejemplo, leche fresca"
             />
           </div>
@@ -131,14 +145,27 @@ export function ItemDialog({ open, onOpenChange, item, onSave }: Props) {
               step="any"
               className="h-10 rounded-xl"
               value={draft.quantity}
-              onChange={(event) => setDraft({ ...draft, quantity: Number(event.target.value) })}
+              onChange={(event) =>
+                setDraft({ ...draft, quantity: Number(event.target.value) })
+              }
             />
           </div>
           <div className="space-y-2">
             <Label htmlFor="item-unit">Unidad</Label>
-            <NativeSelect className="w-full" value={draft.unit} onChange={(event) => setDraft({ ...draft, unit: event.target.value as InventoryItem['unit'] })}>
+            <NativeSelect
+              className="w-full"
+              value={draft.unit}
+              onChange={(event) =>
+                setDraft({
+                  ...draft,
+                  unit: event.target.value as InventoryItem['unit'],
+                })
+              }
+            >
               {UNITS.map((unit) => (
-                <NativeSelectOption key={unit} value={unit}>{unitLabels[unit].plural}</NativeSelectOption>
+                <NativeSelectOption key={unit} value={unit}>
+                  {unitLabels[unit].plural}
+                </NativeSelectOption>
               ))}
             </NativeSelect>
           </div>
@@ -148,84 +175,173 @@ export function ItemDialog({ open, onOpenChange, item, onSave }: Props) {
               className="w-full"
               value={draft.expiryPrecision}
               onChange={(event) => {
-                const expiryPrecision = event.target.value as InventoryItem['expiryPrecision'];
+                const expiryPrecision = event.target
+                  .value as InventoryItem['expiryPrecision'];
                 setDraft({
                   ...draft,
                   expiryPrecision,
-                  expiresOn: draft.expiresOn && expiryPrecision === 'month'
-                    ? monthToExpiryDate(draft.expiresOn.slice(0, 7))
-                    : draft.expiresOn,
+                  expiresOn:
+                    draft.expiresOn && expiryPrecision === 'month'
+                      ? monthToExpiryDate(draft.expiresOn.slice(0, 7))
+                      : draft.expiresOn,
                 });
               }}
             >
               {EXPIRY_PRECISIONS.map((precision) => (
-                <NativeSelectOption key={precision} value={precision}>{expiryPrecisionLabels[precision]}</NativeSelectOption>
+                <NativeSelectOption key={precision} value={precision}>
+                  {expiryPrecisionLabels[precision]}
+                </NativeSelectOption>
               ))}
             </NativeSelect>
           </div>
           <div className="space-y-2">
-            <Label htmlFor="item-expiry">{draft.expiryPrecision === 'month' ? 'Mes y año' : 'Fecha'}</Label>
+            <Label htmlFor="item-expiry">
+              {draft.expiryPrecision === 'month' ? 'Mes y año' : 'Fecha'}
+            </Label>
             <Input
               id="item-expiry"
               type={draft.expiryPrecision === 'month' ? 'month' : 'date'}
               className="h-10 rounded-xl"
-              value={draft.expiryPrecision === 'month' ? draft.expiresOn?.slice(0, 7) ?? '' : draft.expiresOn ?? ''}
-              onChange={(event) => setDraft({
-                ...draft,
-                expiresOn: event.target.value
-                  ? draft.expiryPrecision === 'month'
-                    ? monthToExpiryDate(event.target.value)
-                    : event.target.value
-                  : null,
-              })}
+              value={
+                draft.expiryPrecision === 'month'
+                  ? (draft.expiresOn?.slice(0, 7) ?? '')
+                  : (draft.expiresOn ?? '')
+              }
+              onChange={(event) =>
+                setDraft({
+                  ...draft,
+                  expiresOn: event.target.value
+                    ? draft.expiryPrecision === 'month'
+                      ? monthToExpiryDate(event.target.value)
+                      : event.target.value
+                    : null,
+                })
+              }
             />
           </div>
           <div className="space-y-2">
             <Label htmlFor="item-kind">Tipo de fecha</Label>
-            <NativeSelect className="w-full" value={draft.expiryKind} onChange={(event) => setDraft({ ...draft, expiryKind: event.target.value as InventoryItem['expiryKind'] })}>
+            <NativeSelect
+              className="w-full"
+              value={draft.expiryKind}
+              onChange={(event) =>
+                setDraft({
+                  ...draft,
+                  expiryKind: event.target.value as InventoryItem['expiryKind'],
+                })
+              }
+            >
               {EXPIRY_KINDS.map((kind) => (
-                <NativeSelectOption key={kind} value={kind}>{expiryKindLabels[kind]}</NativeSelectOption>
+                <NativeSelectOption key={kind} value={kind}>
+                  {expiryKindLabels[kind]}
+                </NativeSelectOption>
               ))}
             </NativeSelect>
           </div>
           <div className="space-y-2">
             <Label htmlFor="item-storage">Ubicación</Label>
-            <NativeSelect className="w-full" value={draft.storageLocation} onChange={(event) => setDraft({ ...draft, storageLocation: event.target.value as InventoryItem['storageLocation'] })}>
+            <NativeSelect
+              className="w-full"
+              value={draft.storageLocation}
+              onChange={(event) =>
+                setDraft({
+                  ...draft,
+                  storageLocation: event.target
+                    .value as InventoryItem['storageLocation'],
+                })
+              }
+            >
               {STORAGE_LOCATIONS.map((location) => (
-                <NativeSelectOption key={location} value={location}>{storageLabels[location]}</NativeSelectOption>
+                <NativeSelectOption key={location} value={location}>
+                  {storageLabels[location]}
+                </NativeSelectOption>
               ))}
             </NativeSelect>
           </div>
           <div className="space-y-2">
-            <Label htmlFor="item-after-open">Días después de abrir</Label>
-            <Input
-              id="item-after-open"
-              type="number"
-              min="1"
-              className="h-10 rounded-xl"
-              value={draft.consumeWithinDaysAfterOpening ?? ''}
-              onChange={(event) => setDraft({ ...draft, consumeWithinDaysAfterOpening: event.target.value ? Number(event.target.value) : null })}
-              placeholder="Opcional"
-            />
-            <p className="text-[11px] leading-4 text-muted-foreground">Solo si seguirá guardado después de abrirlo, como una leche o una salsa.</p>
+            <Label htmlFor="item-opening-mode">Después de abrir</Label>
+            <NativeSelect
+              className="w-full"
+              value={draft.tracksOpenedState ? 'keep' : 'whole'}
+              onChange={(event) => {
+                const tracksOpenedState = event.target.value === 'keep';
+                setDraft({
+                  ...draft,
+                  tracksOpenedState,
+                  openedOn: tracksOpenedState ? draft.openedOn : null,
+                  consumeWithinDaysAfterOpening: tracksOpenedState
+                    ? draft.consumeWithinDaysAfterOpening
+                    : null,
+                });
+              }}
+            >
+              <NativeSelectOption value="whole">
+                Se consume entero
+              </NativeSelectOption>
+              <NativeSelectOption value="keep">
+                Se guarda abierto
+              </NativeSelectOption>
+            </NativeSelect>
           </div>
+          {draft.tracksOpenedState && (
+            <div className="space-y-2">
+              <Label htmlFor="item-after-open">Días después de abrir</Label>
+              <Input
+                id="item-after-open"
+                type="number"
+                min="1"
+                className="h-10 rounded-xl"
+                value={draft.consumeWithinDaysAfterOpening ?? ''}
+                onChange={(event) =>
+                  setDraft({
+                    ...draft,
+                    consumeWithinDaysAfterOpening: event.target.value
+                      ? Number(event.target.value)
+                      : null,
+                  })
+                }
+                placeholder="Opcional"
+              />
+              <p className="text-[11px] leading-4 text-muted-foreground">
+                Opcional. Mira la etiqueta del envase; si no indica un plazo,
+                puedes dejarlo vacío.
+              </p>
+            </div>
+          )}
           <div className="space-y-2 sm:col-span-2">
             <Label htmlFor="item-notes">Notas</Label>
             <Textarea
               id="item-notes"
               className="min-h-20 rounded-xl"
               value={draft.notes ?? ''}
-              onChange={(event) => setDraft({ ...draft, notes: event.target.value || null })}
+              onChange={(event) =>
+                setDraft({ ...draft, notes: event.target.value || null })
+              }
               placeholder="Marca, sabor, dónde está guardado…"
             />
           </div>
         </div>
 
-        {error && <p role="alert" className="text-sm font-medium text-destructive">{error}</p>}
+        {error && (
+          <p role="alert" className="text-sm font-medium text-destructive">
+            {error}
+          </p>
+        )}
 
         <DialogFooter className="-mx-5 -mb-5 px-5 sm:-mx-6 sm:-mb-6 sm:px-6">
-          <Button variant="outline" className="h-10 rounded-xl" disabled={busy} onClick={() => onOpenChange(false)}>Cancelar</Button>
-          <Button className="h-10 rounded-xl px-4 font-bold" disabled={busy} onClick={() => void save()}>
+          <Button
+            variant="outline"
+            className="h-10 rounded-xl"
+            disabled={busy}
+            onClick={() => onOpenChange(false)}
+          >
+            Cancelar
+          </Button>
+          <Button
+            className="h-10 rounded-xl px-4 font-bold"
+            disabled={busy}
+            onClick={() => void save()}
+          >
             {busy ? 'Guardando…' : 'Guardar producto'}
           </Button>
         </DialogFooter>
