@@ -14,6 +14,7 @@ import {
   CloudOff,
   Edit3,
   Home,
+  Link2,
   Loader2,
   MapPin,
   PackageOpen,
@@ -100,6 +101,19 @@ function expiryTone(item: InventoryItem): string {
   return 'text-primary';
 }
 
+function batchRelationship(item: InventoryItem, items: InventoryItem[]): string | null {
+  if (item.sourceBatchId) {
+    const source = items.find((candidate) => candidate.id === item.sourceBatchId);
+    return source ? `Lote original: ${formatQuantity(source)} sin abrir` : 'Separado de su lote original';
+  }
+  const openedQuantity = items
+    .filter((candidate) => candidate.sourceBatchId === item.id)
+    .reduce((total, candidate) => total + candidate.quantity, 0);
+  return openedQuantity > 0
+    ? `Abiertos desde este lote: ${formatQuantity({ ...item, quantity: openedQuantity })}`
+    : null;
+}
+
 function LoadingScreen() {
   return (
     <main className="grid min-h-screen place-items-center bg-background">
@@ -114,18 +128,21 @@ function LoadingScreen() {
 
 function InventoryCard({
   item,
+  relationship,
   onConsume,
   onOpen,
   onEdit,
   onDiscard,
 }: {
   item: InventoryItem;
+  relationship?: string | null;
   onConsume: () => void;
   onOpen: () => void;
   onEdit: () => void;
   onDiscard: () => void;
 }) {
   const effectiveExpiry = getEffectiveExpiry(item);
+  const canOpen = !item.openedOn && Boolean(item.consumeWithinDaysAfterOpening);
   return (
     <article className="rounded-[20px] border border-border bg-card p-4 shadow-[0_8px_28px_rgb(44_45_40/5%)]">
       <div className="flex items-start gap-3.5">
@@ -140,12 +157,14 @@ function InventoryCard({
             <span className="size-1.5 rounded-full bg-current" />{formatExpiry(item)}
           </p>
           {effectiveExpiry && <p className="mt-1 text-[11px] text-muted-foreground">{expiryKindLabels[item.expiryKind]}: {formatLongDate(effectiveExpiry, effectiveExpiry === item.expiresOn ? item.expiryPrecision : 'day')}</p>}
+          {!item.openedOn && item.consumeWithinDaysAfterOpening && <p className="mt-1 text-[11px] text-muted-foreground">Al abrir: consumir en {item.consumeWithinDaysAfterOpening} días</p>}
+          {relationship && <p className="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-primary/[0.06] px-2 py-1 text-[11px] font-semibold text-primary"><Link2 className="size-3" />{relationship}</p>}
         </div>
         <Button aria-label={`Editar ${item.name}`} variant="ghost" size="icon-sm" onClick={onEdit}><Edit3 className="size-4" /></Button>
       </div>
-      <div className="mt-4 grid grid-cols-3 gap-2 border-t border-border/70 pt-3">
+      <div className={`mt-4 grid ${canOpen ? 'grid-cols-3' : 'grid-cols-2'} gap-2 border-t border-border/70 pt-3`}>
         <Button variant="secondary" size="sm" className="rounded-xl font-bold" onClick={onConsume}><CheckCircle2 className="size-3.5" />Consumir</Button>
-        <Button variant="outline" size="sm" className="rounded-xl font-bold" disabled={Boolean(item.openedOn)} onClick={onOpen}><PackageOpen className="size-3.5" />Abrir</Button>
+        {canOpen && <Button variant="outline" size="sm" className="rounded-xl font-bold" onClick={onOpen}><PackageOpen className="size-3.5" />Abrir</Button>}
         <Button variant="ghost" size="sm" className="rounded-xl text-muted-foreground" onClick={onDiscard}><Trash2 className="size-3.5" />Tirar</Button>
       </div>
     </article>
@@ -199,7 +218,7 @@ function TodayView({ items, onViewInventory, onImport, actions }: {
         </div>
         {urgent.length ? (
           <div className="grid gap-3 md:grid-cols-3">
-            {urgent.map((item) => <InventoryCard key={item.id} item={item} onConsume={() => actions.consume(item.id)} onOpen={() => actions.open(item.id)} onEdit={() => actions.edit(item)} onDiscard={() => actions.discard(item)} />)}
+            {urgent.map((item) => <InventoryCard key={item.id} item={item} relationship={batchRelationship(item, items)} onConsume={() => actions.consume(item.id)} onOpen={() => actions.open(item.id)} onEdit={() => actions.edit(item)} onDiscard={() => actions.discard(item)} />)}
           </div>
         ) : (
           <div className="rounded-[20px] border border-border bg-card p-8 text-center"><CheckCircle2 className="mx-auto size-7 text-primary" /><p className="mt-3 text-sm font-extrabold">Nada caduca en los próximos 3 días</p><p className="mt-1 text-xs text-muted-foreground">Buen momento para planificar la siguiente compra.</p></div>
@@ -248,7 +267,7 @@ function InventoryView({ items, actions, onAdd, location, onLocationChange }: { 
           {([{ id: 'all', label: 'Todo' }, { id: 'fridge', label: 'Nevera' }, { id: 'freezer', label: 'Congelador' }, { id: 'pantry', label: 'Despensa' }, { id: 'other', label: 'Otro' }] as const).map((filter) => <button key={filter.id} type="button" className={`h-10 shrink-0 rounded-xl px-3 text-xs font-extrabold ${location === filter.id ? 'bg-primary text-primary-foreground' : 'bg-muted/60 text-muted-foreground hover:text-foreground'}`} onClick={() => onLocationChange(filter.id)}>{filter.label}</button>)}
         </div>
       </div>
-      {filtered.length ? <div className="mt-5 grid gap-3 md:grid-cols-2">{filtered.map((item) => <InventoryCard key={item.id} item={item} onConsume={() => actions.consume(item.id)} onOpen={() => actions.open(item.id)} onEdit={() => actions.edit(item)} onDiscard={() => actions.discard(item)} />)}</div> : <div className="mt-5 rounded-2xl border border-border bg-card p-10 text-center"><Search className="mx-auto size-7 text-muted-foreground" /><p className="mt-3 text-sm font-extrabold">No hay resultados</p><p className="mt-1 text-xs text-muted-foreground">Prueba otra búsqueda o ubicación.</p></div>}
+      {filtered.length ? <div className="mt-5 grid gap-3 md:grid-cols-2">{filtered.map((item) => <InventoryCard key={item.id} item={item} relationship={batchRelationship(item, items)} onConsume={() => actions.consume(item.id)} onOpen={() => actions.open(item.id)} onEdit={() => actions.edit(item)} onDiscard={() => actions.discard(item)} />)}</div> : <div className="mt-5 rounded-2xl border border-border bg-card p-10 text-center"><Search className="mx-auto size-7 text-muted-foreground" /><p className="mt-3 text-sm font-extrabold">No hay resultados</p><p className="mt-1 text-xs text-muted-foreground">Prueba otra búsqueda o ubicación.</p></div>}
     </div>
   );
 }
