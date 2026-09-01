@@ -40,6 +40,7 @@ function blankItem(): InventoryItem {
   const now = new Date().toISOString();
   return {
     id: crypto.randomUUID(),
+    sourceBatchId: null,
     name: '',
     quantity: 1,
     initialQuantity: 1,
@@ -206,6 +207,7 @@ export function ItemDialog({ open, onOpenChange, item, onSave }: Props) {
               onChange={(event) => setDraft({ ...draft, consumeWithinDaysAfterOpening: event.target.value ? Number(event.target.value) : null })}
               placeholder="Opcional"
             />
+            <p className="text-[11px] leading-4 text-muted-foreground">Solo si seguirá guardado después de abrirlo, como una leche o una salsa.</p>
           </div>
           <div className="space-y-2 sm:col-span-2">
             <Label htmlFor="item-notes">Notas</Label>
