@@ -1,9 +1,21 @@
-import { addDays, differenceInCalendarDays, endOfMonth, format, isValid, parseISO } from 'date-fns';
+import {
+  addDays,
+  differenceInCalendarDays,
+  endOfMonth,
+  format,
+  isValid,
+  parseISO,
+} from 'date-fns';
 import { es } from 'date-fns/locale';
 import { z } from 'zod';
 
 export const UNITS = ['unit', 'g', 'kg', 'ml', 'l', 'pack'] as const;
-export const STORAGE_LOCATIONS = ['fridge', 'freezer', 'pantry', 'other'] as const;
+export const STORAGE_LOCATIONS = [
+  'fridge',
+  'freezer',
+  'pantry',
+  'other',
+] as const;
 export const EXPIRY_KINDS = ['use_by', 'best_before', 'unknown'] as const;
 export const EXPIRY_PRECISIONS = ['day', 'month'] as const;
 
@@ -26,6 +38,7 @@ export type InventoryItem = {
   expiryKind: ExpiryKind;
   expiryPrecision: ExpiryPrecision;
   storageLocation: StorageLocation;
+  tracksOpenedState: boolean;
   openedOn: string | null;
   consumeWithinDaysAfterOpening: number | null;
   notes: string | null;
@@ -38,7 +51,13 @@ export type InventoryItem = {
 export type InventoryActivity = {
   id: string;
   itemId?: string;
-  action: 'imported' | 'created' | 'opened' | 'consumed' | 'discarded' | 'updated';
+  action:
+    | 'imported'
+    | 'created'
+    | 'opened'
+    | 'consumed'
+    | 'discarded'
+    | 'updated';
   itemName: string;
   detail: string;
   actorName: string;
@@ -59,42 +78,65 @@ const isoMonth = z
   .regex(/^\d{4}-\d{2}$/, 'Usa meses con el formato AAAA-MM')
   .refine((value) => isValid(parseISO(`${value}-01`)), 'El mes no es válido');
 
-const expiryDateInput = z.union([isoDate, isoMonth, z.null()]).optional().default(null);
+const expiryDateInput = z
+  .union([isoDate, isoMonth, z.null()])
+  .optional()
+  .default(null);
 
 const importedItemSchema = z
   .object({
     name: z.string().trim().min(1, 'Falta el nombre').max(120),
-    quantity: z.coerce.number().positive('La cantidad debe ser mayor que cero').max(100000),
+    quantity: z.coerce
+      .number()
+      .positive('La cantidad debe ser mayor que cero')
+      .max(100000),
     unit: z.enum(UNITS).default('unit'),
     expires_on: expiryDateInput,
     expiry_kind: z.enum(EXPIRY_KINDS).default('unknown'),
     expiry_precision: z.enum(EXPIRY_PRECISIONS).optional(),
     storage_location: z.enum(STORAGE_LOCATIONS).default('pantry'),
+    track_after_opening: z.boolean().optional(),
     opened_on: nullableDate,
     consume_within_days_after_opening: z
       .union([z.coerce.number().int().positive().max(365), z.null()])
       .optional()
       .default(null),
-    notes: z.union([z.string().trim().max(500), z.null()]).optional().default(null),
+    notes: z
+      .union([z.string().trim().max(500), z.null()])
+      .optional()
+      .default(null),
   })
   .transform((item) => {
-    const monthOnly = Boolean(item.expires_on && /^\d{4}-\d{2}$/.test(item.expires_on));
-    const expiryPrecision: ExpiryPrecision = item.expires_on && (monthOnly || item.expiry_precision === 'month')
-      ? 'month'
-      : 'day';
+    const monthOnly = Boolean(
+      item.expires_on && /^\d{4}-\d{2}$/.test(item.expires_on),
+    );
+    const expiryPrecision: ExpiryPrecision =
+      item.expires_on && (monthOnly || item.expiry_precision === 'month')
+        ? 'month'
+        : 'day';
     return {
       ...item,
-      expires_on: item.expires_on && expiryPrecision === 'month'
-        ? monthToExpiryDate(item.expires_on.slice(0, 7))
-        : item.expires_on,
+      track_after_opening:
+        item.track_after_opening ??
+        (Boolean(item.consume_within_days_after_opening) ||
+          inferTracksOpenedState(item.name)),
+      expires_on:
+        item.expires_on && expiryPrecision === 'month'
+          ? monthToExpiryDate(item.expires_on.slice(0, 7))
+          : item.expires_on,
       expiry_precision: expiryPrecision,
     };
   });
 
 export const purchaseImportSchema = z.object({
-  schema_version: z.union([z.literal('1.0'), z.literal(1)]).transform(() => '1.0' as const),
+  schema_version: z
+    .union([z.literal('1.0'), z.literal(1)])
+    .transform(() => '1.0' as const),
   purchased_on: nullableDate,
-  items: z.array(importedItemSchema).min(1, 'El JSON no contiene productos').max(100),
+  items: z
+    .array(importedItemSchema)
+    .min(1, 'El JSON no contiene productos')
+    .max(100),
 });
 
 export type PurchaseImport = z.infer<typeof purchaseImportSchema>;
@@ -149,7 +191,7 @@ const expiryAliases: Record<string, ExpiryKind> = {
 const expiryPrecisionAliases: Record<string, ExpiryPrecision> = {
   day: 'day',
   dia: 'day',
-  'día': 'day',
+  día: 'day',
   fecha: 'day',
   month: 'month',
   mes: 'month',
@@ -185,7 +227,9 @@ export function normalizeImportPayload(input: unknown): unknown {
         'unknown',
       );
       const rawExpiryPrecision = stringValue(
-        item.expiry_precision ?? item.precision_caducidad ?? item.precisión_caducidad,
+        item.expiry_precision ??
+          item.precision_caducidad ??
+          item.precisión_caducidad,
         'day',
       );
 
@@ -193,13 +237,21 @@ export function normalizeImportPayload(input: unknown): unknown {
         name: item.name ?? item.nombre,
         quantity: item.quantity ?? item.cantidad,
         unit: unitAliases[rawUnit] ?? rawUnit,
-        expires_on: item.expires_on ?? item.fecha_caducidad ?? item.caduca_el ?? null,
+        expires_on:
+          item.expires_on ?? item.fecha_caducidad ?? item.caduca_el ?? null,
         expiry_kind: expiryAliases[rawExpiryKind] ?? rawExpiryKind,
-        expiry_precision: expiryPrecisionAliases[rawExpiryPrecision] ?? rawExpiryPrecision,
+        expiry_precision:
+          expiryPrecisionAliases[rawExpiryPrecision] ?? rawExpiryPrecision,
         storage_location: storageAliases[rawStorage] ?? rawStorage,
+        track_after_opening:
+          item.track_after_opening ??
+          item.se_guarda_tras_abrir ??
+          item.mantener_abierto,
         opened_on: item.opened_on ?? item.abierto_el ?? null,
         consume_within_days_after_opening:
-          item.consume_within_days_after_opening ?? item.dias_tras_apertura ?? null,
+          item.consume_within_days_after_opening ??
+          item.dias_tras_apertura ??
+          null,
         notes: item.notes ?? item.notas ?? null,
       };
     }),
@@ -223,6 +275,7 @@ export function importedItemToInventory(
     expiryKind: item.expiry_kind,
     expiryPrecision: item.expiry_precision,
     storageLocation: item.storage_location,
+    tracksOpenedState: item.track_after_opening,
     openedOn: item.opened_on,
     consumeWithinDaysAfterOpening: item.consume_within_days_after_opening,
     notes: item.notes,
@@ -233,7 +286,10 @@ export function importedItemToInventory(
   };
 }
 
-export const unitLabels: Record<Unit, { singular: string; plural: string; short: string }> = {
+export const unitLabels: Record<
+  Unit,
+  { singular: string; plural: string; short: string }
+> = {
   unit: { singular: 'unidad', plural: 'unidades', short: 'ud.' },
   g: { singular: 'gramo', plural: 'gramos', short: 'g' },
   kg: { singular: 'kilo', plural: 'kilos', short: 'kg' },
@@ -269,13 +325,19 @@ export function getEffectiveExpiry(item: InventoryItem): string | null {
   if (item.expiresOn) dates.push(item.expiresOn);
   if (item.openedOn && item.consumeWithinDaysAfterOpening) {
     dates.push(
-      format(addDays(parseISO(item.openedOn), item.consumeWithinDaysAfterOpening), 'yyyy-MM-dd'),
+      format(
+        addDays(parseISO(item.openedOn), item.consumeWithinDaysAfterOpening),
+        'yyyy-MM-dd',
+      ),
     );
   }
   return dates.sort()[0] ?? null;
 }
 
-export function daysUntilExpiry(item: InventoryItem, now = new Date()): number | null {
+export function daysUntilExpiry(
+  item: InventoryItem,
+  now = new Date(),
+): number | null {
   const expiry = getEffectiveExpiry(item);
   if (!expiry) return null;
   return differenceInCalendarDays(parseISO(expiry), now);
@@ -284,24 +346,37 @@ export function daysUntilExpiry(item: InventoryItem, now = new Date()): number |
 export function formatExpiry(item: InventoryItem, now = new Date()): string {
   const days = daysUntilExpiry(item, now);
   if (days === null) return 'Sin fecha';
-  if (days < 0) return `Caducó hace ${Math.abs(days)} ${Math.abs(days) === 1 ? 'día' : 'días'}`;
-  if (days === 0) return item.expiryKind === 'best_before' ? 'Preferente hoy' : 'Caduca hoy';
-  if (days === 1) return item.expiryKind === 'best_before' ? 'Preferente mañana' : 'Caduca mañana';
+  if (days < 0)
+    return `Caducó hace ${Math.abs(days)} ${Math.abs(days) === 1 ? 'día' : 'días'}`;
+  if (days === 0)
+    return item.expiryKind === 'best_before' ? 'Preferente hoy' : 'Caduca hoy';
+  if (days === 1)
+    return item.expiryKind === 'best_before'
+      ? 'Preferente mañana'
+      : 'Caduca mañana';
   return `Quedan ${days} días`;
 }
 
-export function formatQuantity(item: Pick<InventoryItem, 'quantity' | 'unit'>): string {
+export function formatQuantity(
+  item: Pick<InventoryItem, 'quantity' | 'unit'>,
+): string {
   const amount = Number.isInteger(item.quantity)
     ? String(item.quantity)
     : item.quantity.toLocaleString('es-ES', { maximumFractionDigits: 2 });
   if (item.unit === 'unit' || item.unit === 'pack') {
-    const label = item.quantity === 1 ? unitLabels[item.unit].singular : unitLabels[item.unit].plural;
+    const label =
+      item.quantity === 1
+        ? unitLabels[item.unit].singular
+        : unitLabels[item.unit].plural;
     return `${amount} ${label}`;
   }
   return `${amount} ${unitLabels[item.unit].short}`;
 }
 
-export function formatLongDate(value: string, precision: ExpiryPrecision = 'day'): string {
+export function formatLongDate(
+  value: string,
+  precision: ExpiryPrecision = 'day',
+): string {
   return precision === 'month'
     ? format(parseISO(value), "MMMM 'de' yyyy", { locale: es })
     : format(parseISO(value), "d 'de' MMMM 'de' yyyy", { locale: es });
@@ -310,7 +385,8 @@ export function formatLongDate(value: string, precision: ExpiryPrecision = 'day'
 export function inventorySort(a: InventoryItem, b: InventoryItem): number {
   const aDays = daysUntilExpiry(a);
   const bDays = daysUntilExpiry(b);
-  if (aDays === null && bDays === null) return a.name.localeCompare(b.name, 'es');
+  if (aDays === null && bDays === null)
+    return a.name.localeCompare(b.name, 'es');
   if (aDays === null) return 1;
   if (bDays === null) return -1;
   return aDays - bDays || a.name.localeCompare(b.name, 'es');
@@ -318,12 +394,32 @@ export function inventorySort(a: InventoryItem, b: InventoryItem): number {
 
 export function decrementFor(item: InventoryItem): number {
   if (item.unit === 'unit' || item.unit === 'pack') return 1;
-  if (item.unit === 'g' || item.unit === 'ml') return Math.min(100, item.quantity);
+  if (item.unit === 'g' || item.unit === 'ml')
+    return Math.min(100, item.quantity);
   return Math.min(0.25, item.quantity);
 }
 
+export function inferTracksOpenedState(name: string): boolean {
+  const normalized = name.toLocaleLowerCase('es');
+  return [
+    'salsa',
+    'piri-piri',
+    'piripiri',
+    'pepinill',
+    'encurtid',
+    'aceituna',
+    'mayonesa',
+    'mostaza',
+    'ketchup',
+    'mermelada',
+    'leche',
+    'bebida vegetal',
+  ].some((keyword) => normalized.includes(keyword));
+}
+
 const isoToday = () => format(new Date(), 'yyyy-MM-dd');
-const relativeDate = (days: number) => format(addDays(new Date(), days), 'yyyy-MM-dd');
+const relativeDate = (days: number) =>
+  format(addDays(new Date(), days), 'yyyy-MM-dd');
 
 export function createDemoInventory(): InventoryItem[] {
   const now = new Date().toISOString();
@@ -347,6 +443,7 @@ export function createDemoInventory(): InventoryItem[] {
     expiryKind: 'use_by',
     expiryPrecision: 'day',
     storageLocation,
+    tracksOpenedState: false,
     openedOn: null,
     consumeWithinDaysAfterOpening: null,
     notes: null,
@@ -360,6 +457,7 @@ export function createDemoInventory(): InventoryItem[] {
   return [
     create('demo-eggs', 'Huevos camperos', 12, 'unit', 0, 'fridge'),
     create('demo-milk', 'Leche fresca', 1, 'l', 6, 'fridge', {
+      tracksOpenedState: true,
       openedOn: relativeDate(-1),
       consumeWithinDaysAfterOpening: 3,
     }),
@@ -370,6 +468,7 @@ export function createDemoInventory(): InventoryItem[] {
     create('demo-chicken', 'Pechuga de pollo', 500, 'g', 1, 'fridge'),
     create('demo-peas', 'Guisantes', 750, 'g', 45, 'freezer'),
     create('demo-bread', 'Pan de molde', 1, 'pack', 5, 'pantry', {
+      tracksOpenedState: true,
       openedOn: isoToday(),
       consumeWithinDaysAfterOpening: 5,
     }),
@@ -424,6 +523,7 @@ export const examplePurchaseJson = JSON.stringify(
         expiry_kind: 'use_by',
         expiry_precision: 'day',
         storage_location: 'fridge',
+        track_after_opening: false,
         opened_on: null,
         consume_within_days_after_opening: null,
         notes: null,
