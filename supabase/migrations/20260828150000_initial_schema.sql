@@ -55,6 +55,7 @@ create table public.inventory_batches (
   expiry_kind public.expiry_kind not null default 'unknown',
   expiry_precision text not null default 'day' check (expiry_precision in ('day', 'month')),
   storage_location public.storage_location not null default 'pantry',
+  tracks_opened_state boolean not null default false,
   opened_on date,
   consume_within_days_after_opening integer check (consume_within_days_after_opening between 1 and 365),
   notes text check (notes is null or char_length(notes) <= 500),
@@ -379,16 +380,16 @@ begin
   select * into v_item from public.inventory_batches where id = p_batch_id for update;
   if not found or not public.is_household_member(v_item.household_id) then raise exception 'not_allowed'; end if;
   if v_item.opened_on is not null then return v_item.id; end if;
-  if v_item.consume_within_days_after_opening is null then raise exception 'opening_not_applicable'; end if;
+  if not v_item.tracks_opened_state then raise exception 'opening_not_applicable'; end if;
   if v_item.unit in ('unit', 'pack') and v_item.quantity > 1 then
     update public.inventory_batches set quantity = quantity - 1 where id = p_batch_id;
     insert into public.inventory_batches (
       household_id, source_batch_id, name, quantity, initial_quantity, unit, purchased_on, expires_on,
-      expiry_kind, expiry_precision, storage_location, opened_on, consume_within_days_after_opening,
+      expiry_kind, expiry_precision, storage_location, tracks_opened_state, opened_on, consume_within_days_after_opening,
       notes, status, created_by
     ) values (
       v_item.household_id, coalesce(v_item.source_batch_id, v_item.id), v_item.name, 1, 1, v_item.unit, v_item.purchased_on, v_item.expires_on,
-      v_item.expiry_kind, v_item.expiry_precision, v_item.storage_location, current_date, v_item.consume_within_days_after_opening,
+      v_item.expiry_kind, v_item.expiry_precision, v_item.storage_location, true, current_date, v_item.consume_within_days_after_opening,
       v_item.notes, 'active', auth.uid()
     ) returning id into v_opened_id;
   else
@@ -398,6 +399,41 @@ begin
   values (v_item.household_id, v_opened_id, auth.uid(), 'opened', v_item.name,
     case when v_item.quantity > 1 then 'Abrió una unidad' else 'Marcó el producto como abierto' end);
   return v_opened_id;
+end;
+$$;
+
+create or replace function public.use_open_inventory_item(p_batch_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_item public.inventory_batches%rowtype;
+begin
+  select * into v_item from public.inventory_batches where id = p_batch_id;
+  if not found
+    or not public.is_household_member(v_item.household_id)
+    or v_item.status <> 'active'
+    or v_item.quantity <= 0
+    or not v_item.tracks_opened_state
+    or v_item.opened_on is null
+  then
+    raise exception 'not_allowed';
+  end if;
+
+  insert into public.inventory_events (
+    household_id, batch_id, user_id, action, item_name, detail, quantity_delta, metadata
+  ) values (
+    v_item.household_id,
+    v_item.id,
+    auth.uid(),
+    'consumed',
+    v_item.name,
+    'Usó un poco; el envase sigue abierto',
+    0,
+    jsonb_build_object('partial_use', true)
+  );
 end;
 $$;
 
@@ -502,6 +538,7 @@ grant execute on function public.join_household(text) to authenticated;
 grant execute on function public.consume_inventory_item(uuid, numeric) to authenticated;
 grant execute on function public.restore_consumed_inventory_event(uuid) to authenticated;
 grant execute on function public.open_inventory_item(uuid) to authenticated;
+grant execute on function public.use_open_inventory_item(uuid) to authenticated;
 grant execute on function public.discard_inventory_item(uuid) to authenticated;
 
 revoke all on function public.create_household(text) from public;
@@ -510,6 +547,7 @@ revoke all on function public.join_household(text) from public;
 revoke all on function public.consume_inventory_item(uuid, numeric) from public;
 revoke all on function public.restore_consumed_inventory_event(uuid) from public;
 revoke all on function public.open_inventory_item(uuid) from public;
+revoke all on function public.use_open_inventory_item(uuid) from public;
 revoke all on function public.discard_inventory_item(uuid) from public;
 revoke all on public.inventory_notification_candidates from anon, authenticated;
 grant select on public.inventory_notification_candidates to service_role;
