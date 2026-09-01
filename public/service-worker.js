@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'en-casa-v6';
+const CACHE_VERSION = 'en-casa-v7';
 const APP_SHELL = ['./', './manifest.webmanifest', './icon.svg'];
 
 self.addEventListener('install', (event) => {
