@@ -44,6 +44,7 @@ create table public.household_invites (
 create table public.inventory_batches (
   id uuid primary key default gen_random_uuid(),
   household_id uuid not null references public.households(id) on delete cascade,
+  source_batch_id uuid references public.inventory_batches(id) on delete set null,
   name text not null check (char_length(name) between 1 and 120),
   normalized_name text generated always as (lower(trim(name))) stored,
   quantity numeric(12,3) not null check (quantity >= 0),
@@ -114,6 +115,7 @@ create table public.notification_log (
 
 create index inventory_batches_household_status_idx on public.inventory_batches (household_id, status);
 create index inventory_batches_household_expiry_idx on public.inventory_batches (household_id, expires_on) where status = 'active';
+create index inventory_batches_source_idx on public.inventory_batches (source_batch_id) where source_batch_id is not null;
 create index inventory_events_household_created_idx on public.inventory_events (household_id, created_at desc);
 create index push_subscriptions_user_idx on public.push_subscriptions (household_id, user_id) where enabled;
 
@@ -377,14 +379,15 @@ begin
   select * into v_item from public.inventory_batches where id = p_batch_id for update;
   if not found or not public.is_household_member(v_item.household_id) then raise exception 'not_allowed'; end if;
   if v_item.opened_on is not null then return v_item.id; end if;
+  if v_item.consume_within_days_after_opening is null then raise exception 'opening_not_applicable'; end if;
   if v_item.unit in ('unit', 'pack') and v_item.quantity > 1 then
     update public.inventory_batches set quantity = quantity - 1 where id = p_batch_id;
     insert into public.inventory_batches (
-      household_id, name, quantity, initial_quantity, unit, purchased_on, expires_on,
+      household_id, source_batch_id, name, quantity, initial_quantity, unit, purchased_on, expires_on,
       expiry_kind, expiry_precision, storage_location, opened_on, consume_within_days_after_opening,
       notes, status, created_by
     ) values (
-      v_item.household_id, v_item.name, 1, 1, v_item.unit, v_item.purchased_on, v_item.expires_on,
+      v_item.household_id, coalesce(v_item.source_batch_id, v_item.id), v_item.name, 1, 1, v_item.unit, v_item.purchased_on, v_item.expires_on,
       v_item.expiry_kind, v_item.expiry_precision, v_item.storage_location, current_date, v_item.consume_within_days_after_opening,
       v_item.notes, 'active', auth.uid()
     ) returning id into v_opened_id;
