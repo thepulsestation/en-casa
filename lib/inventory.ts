@@ -16,6 +16,7 @@ export type InventoryStatus = 'active' | 'consumed' | 'discarded';
 export type InventoryItem = {
   id: string;
   householdId?: string;
+  sourceBatchId: string | null;
   name: string;
   quantity: number;
   initialQuantity: number;
@@ -212,6 +213,7 @@ export function importedItemToInventory(
   const now = new Date().toISOString();
   return {
     id: crypto.randomUUID(),
+    sourceBatchId: null,
     name: item.name,
     quantity: item.quantity,
     initialQuantity: item.quantity,
@@ -335,6 +337,7 @@ export function createDemoInventory(): InventoryItem[] {
     options: Partial<InventoryItem> = {},
   ): InventoryItem => ({
     id,
+    sourceBatchId: null,
     name,
     quantity,
     initialQuantity: quantity,
