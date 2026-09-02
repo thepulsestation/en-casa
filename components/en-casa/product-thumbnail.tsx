@@ -5,11 +5,11 @@ type Props = {
 
 const positions = {
   burger: 'left top',
-  eggs: '42% top',
-  bread: '85% top',
-  pickles: 'left 43%',
-  sauce: '42% 43%',
-  tomatoes: '85% 43%',
+  eggs: 'center top',
+  bread: 'right top',
+  pickles: 'left center',
+  sauce: 'center',
+  tomatoes: 'right center',
 } as const;
 
 function artworkFor(name: string): keyof typeof positions | null {

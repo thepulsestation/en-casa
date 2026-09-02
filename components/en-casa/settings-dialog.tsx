@@ -9,6 +9,7 @@ import {
   House,
   LogOut,
   RotateCcw,
+  Send,
   Share2,
   ShieldCheck,
   Smartphone,
@@ -70,52 +71,158 @@ export function SettingsDialog({
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
-    if (typeof Notification !== 'undefined') setNotificationsEnabled(Notification.permission === 'granted');
+    let cancelled = false;
+    if (
+      !open ||
+      typeof Notification === 'undefined' ||
+      !('serviceWorker' in navigator)
+    ) {
+      setNotificationsEnabled(false);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    void navigator.serviceWorker.ready
+      .then((registration) => registration.pushManager.getSubscription())
+      .then((subscription) => {
+        if (!cancelled) {
+          setNotificationsEnabled(
+            Notification.permission === 'granted' && Boolean(subscription),
+          );
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setNotificationsEnabled(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, [open]);
+
+  const registerPushSubscription = async () => {
+    if (!('Notification' in window) || !('serviceWorker' in navigator)) {
+      throw new Error('Este navegador no admite notificaciones web.');
+    }
+
+    const permission = await Notification.requestPermission();
+    if (permission !== 'granted') {
+      throw new Error(
+        'No se han autorizado las notificaciones. Puedes cambiarlo en los ajustes del móvil.',
+      );
+    }
+
+    const registration = await navigator.serviceWorker.ready;
+    if (demoMode) return { registration, subscription: null };
+
+    const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+    if (!vapidPublicKey || !client || !householdId || !userId) {
+      throw new Error(
+        'Falta terminar la configuración de notificaciones del proyecto.',
+      );
+    }
+
+    const subscription =
+      (await registration.pushManager.getSubscription()) ??
+      (await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(vapidPublicKey),
+      }));
+    const serialized = subscription.toJSON();
+    const { error } = await client.from('push_subscriptions').upsert(
+      {
+        household_id: householdId,
+        user_id: userId,
+        endpoint: serialized.endpoint,
+        p256dh: serialized.keys?.p256dh,
+        auth: serialized.keys?.auth,
+        user_agent: navigator.userAgent,
+        enabled: true,
+      },
+      { onConflict: 'endpoint' },
+    );
+    if (error) throw error;
+    return { registration, subscription };
+  };
 
   const enableNotifications = async () => {
     setNotificationBusy(true);
     setNotificationMessage(null);
     try {
-      if (!('Notification' in window) || !('serviceWorker' in navigator)) {
-        throw new Error('Este navegador no admite notificaciones web.');
-      }
-      const permission = await Notification.requestPermission();
-      if (permission !== 'granted') throw new Error('No se han autorizado las notificaciones. Puedes cambiarlo en los ajustes del móvil.');
+      await registerPushSubscription();
+      setNotificationsEnabled(true);
+      setNotificationMessage(
+        demoMode
+          ? 'Permiso concedido. Al conectar Supabase se activarán los avisos programados.'
+          : 'Avisos activados en este dispositivo. Ya puedes enviar una prueba.',
+      );
+    } catch (caught) {
+      setNotificationsEnabled(false);
+      setNotificationMessage(
+        caught instanceof Error
+          ? caught.message
+          : 'No se han podido activar los avisos.',
+      );
+    } finally {
+      setNotificationBusy(false);
+    }
+  };
+
+  const testNotifications = async () => {
+    setNotificationBusy(true);
+    setNotificationMessage(null);
+    try {
+      const { registration, subscription } =
+        await registerPushSubscription();
       setNotificationsEnabled(true);
 
-      if (demoMode) {
-        setNotificationMessage('Permiso concedido. Al conectar Supabase se activarán los avisos programados.');
-        return;
+      if (demoMode || !client || !subscription) {
+        const basePath = process.env.NEXT_PUBLIC_BASE_PATH ?? '';
+        await registration.showNotification('En casa · Prueba completada', {
+          body: 'Las notificaciones funcionan en este dispositivo.',
+          icon: `${basePath}/icon.svg`,
+          badge: `${basePath}/icon.svg`,
+          tag: 'notification-test',
+        });
+      } else {
+        const { data, error } = await client.functions.invoke(
+          'test-push-notification',
+          { body: { endpoint: subscription.endpoint } },
+        );
+        if (error) {
+          const context = (error as { context?: Response }).context;
+          const responseBody = context
+            ? await context.clone().json().catch(() => null)
+            : null;
+          const responseError =
+            responseBody &&
+            typeof responseBody === 'object' &&
+            'error' in responseBody &&
+            typeof responseBody.error === 'string'
+              ? responseBody.error
+              : null;
+          throw new Error(
+            responseError ??
+              'El servidor no ha podido enviar la notificación de prueba.',
+          );
+        }
+        if (!data?.sent) {
+          throw new Error(
+            data?.error ?? 'No se ha podido entregar la notificación de prueba.',
+          );
+        }
       }
 
-      const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
-      if (!vapidPublicKey || !client || !householdId || !userId) {
-        throw new Error('Falta terminar la configuración de notificaciones del proyecto.');
-      }
-
-      const registration = await navigator.serviceWorker.ready;
-      const subscription = await registration.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(vapidPublicKey),
-      });
-      const serialized = subscription.toJSON();
-      const { error } = await client.from('push_subscriptions').upsert(
-        {
-          household_id: householdId,
-          user_id: userId,
-          endpoint: serialized.endpoint,
-          p256dh: serialized.keys?.p256dh,
-          auth: serialized.keys?.auth,
-          user_agent: navigator.userAgent,
-          enabled: true,
-        },
-        { onConflict: 'endpoint' },
+      setNotificationMessage(
+        'Prueba enviada. Si no aparece, revisa Ajustes del iPhone → Notificaciones → En casa.',
       );
-      if (error) throw error;
-      setNotificationMessage('Avisos activados en este dispositivo.');
     } catch (caught) {
-      setNotificationMessage(caught instanceof Error ? caught.message : 'No se han podido activar los avisos.');
+      setNotificationMessage(
+        caught instanceof Error
+          ? caught.message
+          : 'No se ha podido enviar la prueba.',
+      );
     } finally {
       setNotificationBusy(false);
     }
@@ -168,6 +275,18 @@ export function SettingsDialog({
               {!notificationsEnabled && (
                 <Button variant="outline" size="sm" className="mt-3 rounded-xl" disabled={notificationBusy} onClick={() => void enableNotifications()}>
                   <Smartphone className="size-4" />{notificationBusy ? 'Activando…' : 'Activar en este móvil'}
+                </Button>
+              )}
+              {notificationsEnabled && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="mt-3 rounded-xl"
+                  disabled={notificationBusy}
+                  onClick={() => void testNotifications()}
+                >
+                  <Send className="size-4" />
+                  {notificationBusy ? 'Enviando…' : 'Enviar notificación de prueba'}
                 </Button>
               )}
               {notificationMessage && <p className="mt-3 text-xs leading-5 text-muted-foreground">{notificationMessage}</p>}
