@@ -2,3 +2,6 @@ project_id = "en-casa"
 
 [functions.send-expiry-notifications]
 verify_jwt = false
+
+[functions.test-push-notification]
+verify_jwt = true
