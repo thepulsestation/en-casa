@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'en-casa-v8';
+const CACHE_VERSION = 'en-casa-v9';
 const APP_SHELL = [
   './',
   './manifest.webmanifest',
