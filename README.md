@@ -33,6 +33,11 @@ npm run dev
 5. Crear las claves VAPID y guardar los secretos de la función: `VAPID_SUBJECT`, `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `CRON_SECRET` y `APP_URL`.
 6. Ejecutar una versión completada de `supabase/setup-notification-cron.example.sql`.
 
+Para comprobar toda la cadena desde un móvil, abre **Casa y avisos**, activa los
+avisos y pulsa **Enviar notificación de prueba**. La prueba vuelve a registrar
+la suscripción de ese dispositivo y pide a Supabase que le envíe un Web Push
+real; no hace falta esperar a las 09:00 ni crear un producto temporal.
+
 La clave `service_role` nunca debe añadirse al frontend ni a GitHub Pages.
 
 ## Publicación
