@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import Image from 'next/image';
 import type { Session } from '@supabase/supabase-js';
 import { format, formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -87,9 +88,10 @@ const navItems: Array<{
 
 function expiryTone(item: InventoryItem): string {
   const days = daysUntilExpiry(item);
-  if (days !== null && days <= 0) return 'text-[#b24b42]';
-  if (days !== null && days <= 3) return 'text-[#9a671b]';
-  return 'text-primary';
+  if (days !== null && days <= 0) return 'bg-[#fae8e5] text-[#ad453d]';
+  if (days !== null && days <= 3) return 'bg-[#fff1d9] text-[#a86a08]';
+  if (days !== null) return 'bg-[#e8f2e5] text-[#167044]';
+  return 'bg-muted text-muted-foreground';
 }
 
 function batchRelationship(
@@ -151,30 +153,55 @@ function InventoryCard({
   const canOpen = !item.openedOn && item.tracksOpenedState;
   const isOpenedContainer = Boolean(item.openedOn && item.tracksOpenedState);
   return (
-    <article className="rounded-[20px] border border-border bg-card p-4 shadow-[0_8px_28px_rgb(44_45_40/5%)]">
-      <div className="flex items-start gap-3.5">
-        <ProductThumbnail name={item.name} />
+    <article className="flex min-h-full flex-col rounded-[24px] border border-border/90 bg-card p-3.5 shadow-[0_10px_34px_rgb(57_48_34/6%)] sm:p-4">
+      <div className="flex items-start gap-3.5 sm:gap-4">
+        <ProductThumbnail name={item.name} size="lg" />
         <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <h3 className="truncate text-sm font-extrabold">{item.name}</h3>
+          <div className="flex items-start gap-1">
+            <h3 className="font-heading min-w-0 flex-1 text-[19px] leading-[1.12] tracking-[-0.015em] text-foreground sm:text-[21px]">
+              {item.name}
+            </h3>
+            <Button
+              aria-label={`Editar ${item.name}`}
+              variant="ghost"
+              size="icon-sm"
+              className="-mr-2 -mt-2 shrink-0 rounded-full text-foreground"
+              onClick={onEdit}
+            >
+              <Edit3 className="size-[18px]" />
+            </Button>
+          </div>
+          <p className="mt-1.5 text-sm text-muted-foreground">
+            {formatQuantity(item)}
+          </p>
+          <p className="mt-1 inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+            {item.storageLocation === 'pantry' ? (
+              <PackageOpen className="size-3.5" />
+            ) : item.storageLocation === 'other' ? (
+              <MapPin className="size-3.5" />
+            ) : (
+              <Snowflake className="size-3.5" />
+            )}
+            {storageLabels[item.storageLocation]}
+          </p>
+          <div className="mt-2 flex flex-wrap items-center gap-1.5">
             {item.openedOn && (
-              <Badge className="bg-[#f3ecdd] text-[#846936] hover:bg-[#f3ecdd]">
+              <Badge className="rounded-lg bg-[#f3ecdd] px-2 py-0.5 text-[10px] text-[#846936] hover:bg-[#f3ecdd]">
                 Abierto
               </Badge>
             )}
+            <p
+              className={`inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-[11px] font-extrabold leading-none ${expiryTone(item)}`}
+            >
+              <span className="size-1.5 rounded-full bg-current" />
+              {formatExpiry(item)}
+            </p>
           </div>
-          <p className="mt-1 text-xs text-muted-foreground">
-            {formatQuantity(item)} · {storageLabels[item.storageLocation]}
-          </p>
-          <p
-            className={`mt-2 inline-flex items-center gap-1.5 text-xs font-extrabold ${expiryTone(item)}`}
-          >
-            <span className="size-1.5 rounded-full bg-current" />
-            {formatExpiry(item)}
-          </p>
           {effectiveExpiry && (
-            <p className="mt-1 text-[11px] text-muted-foreground">
-              {expiryKindLabels[item.expiryKind]}:{' '}
+            <p className="mt-1.5 text-[11px] leading-4 text-muted-foreground">
+              <span className="sr-only">
+                {expiryKindLabels[item.expiryKind]}:{' '}
+              </span>
               {formatLongDate(
                 effectiveExpiry,
                 effectiveExpiry === item.expiresOn
@@ -198,30 +225,22 @@ function InventoryCard({
               Puedes registrar usos sin retirar el envase
             </p>
           )}
-          {relationship && (
-            <p className="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-primary/[0.06] px-2 py-1 text-[11px] font-semibold text-primary">
-              <Link2 className="size-3" />
-              {relationship}
-            </p>
-          )}
         </div>
-        <Button
-          aria-label={`Editar ${item.name}`}
-          variant="ghost"
-          size="icon-sm"
-          onClick={onEdit}
-        >
-          <Edit3 className="size-4" />
-        </Button>
       </div>
+      {relationship && (
+        <p className="mt-3 inline-flex items-center gap-1.5 rounded-xl bg-primary/[0.06] px-2.5 py-1.5 text-[11px] font-semibold text-primary">
+          <Link2 className="size-3.5 shrink-0" />
+          {relationship}
+        </p>
+      )}
       <div
-        className={`mt-4 grid ${isOpenedContainer ? 'grid-cols-3' : 'grid-cols-2'} gap-2 border-t border-border/70 pt-3`}
+        className={`mt-auto grid pt-4 ${isOpenedContainer ? 'grid-cols-[1fr_1fr_44px]' : 'grid-cols-[1fr_52px]'}`}
       >
         {!item.tracksOpenedState && (
           <Button
-            variant="secondary"
+            variant="ghost"
             size="sm"
-            className="rounded-xl font-bold"
+            className="h-10 rounded-l-[14px] rounded-r-none border border-border/80 bg-background/65 font-bold text-primary hover:bg-primary/5"
             onClick={onConsume}
           >
             <CheckCircle2 className="size-3.5" />
@@ -230,9 +249,9 @@ function InventoryCard({
         )}
         {canOpen && (
           <Button
-            variant="secondary"
+            variant="ghost"
             size="sm"
-            className="rounded-xl font-bold"
+            className="h-10 rounded-l-[14px] rounded-r-none border border-border/80 bg-background/65 font-bold text-primary hover:bg-primary/5"
             onClick={onOpen}
           >
             <PackageOpen className="size-3.5" />
@@ -241,9 +260,9 @@ function InventoryCard({
         )}
         {isOpenedContainer && (
           <Button
-            variant="secondary"
+            variant="ghost"
             size="sm"
-            className="rounded-xl font-bold"
+            className="h-10 rounded-l-[14px] rounded-r-none border border-border/80 bg-background/65 px-2 font-bold text-primary hover:bg-primary/5"
             onClick={onUse}
           >
             <UtensilsCrossed className="size-3.5" />
@@ -252,9 +271,9 @@ function InventoryCard({
         )}
         {isOpenedContainer && (
           <Button
-            variant="outline"
+            variant="ghost"
             size="sm"
-            className="rounded-xl font-bold"
+            className="h-10 rounded-none border-y border-r border-border/80 bg-background/65 px-2 font-bold hover:bg-primary/5"
             onClick={onFinish}
           >
             <CheckCircle2 className="size-3.5" />
@@ -263,12 +282,12 @@ function InventoryCard({
         )}
         <Button
           variant="ghost"
-          size="sm"
-          className="rounded-xl text-muted-foreground"
+          size="icon-sm"
+          aria-label={`Tirar ${item.name}`}
+          className="h-10 w-full rounded-l-none rounded-r-[14px] border-y border-r border-border/80 bg-background/65 text-muted-foreground hover:bg-destructive/5 hover:text-destructive"
           onClick={onDiscard}
         >
-          <Trash2 className="size-3.5" />
-          Tirar
+          <Trash2 className="size-4" />
         </Button>
       </div>
     </article>
@@ -511,29 +530,60 @@ function InventoryView({
   );
 
   return (
-    <div className="mx-auto max-w-[1040px]">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <p className="text-xs font-bold uppercase tracking-[0.12em] text-primary">
+    <div className="mx-auto max-w-[1120px]">
+      <section className="relative min-h-[276px] overflow-hidden rounded-[28px] border border-white/60 bg-[#f7f3eb] px-5 py-6 shadow-[0_16px_48px_rgb(70_57_37/8%)] sm:min-h-[300px] sm:px-8 sm:py-8">
+        <div className="relative z-20 max-w-[52%] sm:max-w-[58%]">
+          <p className="text-xs font-extrabold uppercase tracking-[0.2em] text-primary">
             Todo lo que hay
           </p>
-          <h2 className="mt-1 text-3xl font-extrabold tracking-[-0.04em]">
+          <h2 className="font-heading mt-2 text-[34px] leading-none tracking-[-0.03em] sm:text-[56px]">
             Inventario
           </h2>
-          <p className="mt-2 text-sm text-muted-foreground">
-            {items.length} lotes disponibles en la casa
+          <p className="mt-4 inline-flex items-center gap-2 text-sm text-muted-foreground sm:text-base">
+            <span className="grid size-9 place-items-center rounded-full bg-primary/8 text-primary">
+              <PackageOpen className="size-4" />
+            </span>
+            <span>{items.length} lotes disponibles en la casa</span>
           </p>
+          <Button
+            className="mt-5 h-12 w-full max-w-[170px] rounded-2xl px-2 text-[10px] font-extrabold shadow-[0_10px_24px_rgb(22_102_70/18%)] sm:max-w-[310px] sm:px-5 sm:text-sm"
+            onClick={onAdd}
+          >
+            <Plus className="size-5" />
+            Añadir manualmente
+          </Button>
         </div>
-        <Button className="h-10 rounded-xl px-4 font-bold" onClick={onAdd}>
-          <Plus className="size-4" />
-          Añadir manualmente
-        </Button>
-      </div>
-      <div className="mt-6 flex flex-col gap-3 rounded-2xl border border-border bg-card p-3 sm:flex-row">
+        <div className="pointer-events-none absolute right-1.5 top-[92px] h-[155px] w-[155px] overflow-hidden rounded-full bg-[#f3efe5] sm:hidden">
+          <Image
+            src={`${process.env.NEXT_PUBLIC_BASE_PATH ?? ''}/inventory-hero-mobile.webp`}
+            alt=""
+            aria-hidden="true"
+            fill
+            sizes="155px"
+            className="object-cover object-center"
+            priority
+            unoptimized
+          />
+        </div>
+        <div className="pointer-events-none absolute inset-y-0 right-0 hidden w-[52%] overflow-hidden sm:block">
+          <div className="absolute inset-y-0 left-0 z-10 w-2/3 bg-gradient-to-r from-[#f7f3eb] via-[#f7f3eb]/65 to-transparent" />
+          <Image
+            src={`${process.env.NEXT_PUBLIC_BASE_PATH ?? ''}/inventory-hero.webp`}
+            alt=""
+            aria-hidden="true"
+            fill
+            sizes="(max-width: 640px) 58vw, 52vw"
+            className="object-cover object-right"
+            priority
+            unoptimized
+          />
+        </div>
+      </section>
+      <div className="mt-5 rounded-[24px] border border-border/80 bg-card p-3 shadow-[0_8px_28px_rgb(57_48_34/4%)]">
         <div className="relative min-w-0 flex-1">
           <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
-            className="h-10 rounded-xl border-0 bg-muted/55 pl-9 shadow-none"
+            className="h-12 rounded-2xl border-0 bg-muted/55 pl-10 text-base shadow-none"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Buscar un producto…"
@@ -549,7 +599,7 @@ function InventoryView({
             </button>
           )}
         </div>
-        <div className="flex gap-1.5 overflow-x-auto pb-1 sm:pb-0">
+        <div className="mt-3 grid grid-cols-5 gap-1.5">
           {(
             [
               { id: 'all', label: 'Todo' },
@@ -562,7 +612,7 @@ function InventoryView({
             <button
               key={filter.id}
               type="button"
-              className={`h-10 shrink-0 rounded-xl px-3 text-xs font-extrabold ${location === filter.id ? 'bg-primary text-primary-foreground' : 'bg-muted/60 text-muted-foreground hover:text-foreground'}`}
+              className={`h-10 rounded-xl px-0.5 text-[9px] font-extrabold transition-colors sm:px-2 sm:text-xs ${location === filter.id ? 'bg-primary text-primary-foreground shadow-[0_7px_16px_rgb(22_102_70/16%)]' : 'bg-muted/60 text-muted-foreground hover:text-foreground'}`}
               onClick={() => onLocationChange(filter.id)}
             >
               {filter.label}
@@ -571,7 +621,7 @@ function InventoryView({
         </div>
       </div>
       {filtered.length ? (
-        <div className="mt-5 grid gap-3 md:grid-cols-2">
+        <div className="mt-5 grid gap-3 min-[720px]:grid-cols-2">
           {filtered.map((item) => (
             <InventoryCard
               key={item.id}

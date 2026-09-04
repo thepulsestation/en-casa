@@ -1,9 +1,29 @@
-const CACHE_VERSION = 'en-casa-v9';
+const CACHE_VERSION = 'en-casa-v10';
 const APP_SHELL = [
   './',
   './manifest.webmanifest',
   './icon.svg',
-  './product-thumbnails.png',
+  './inventory-hero.webp',
+  './inventory-hero-mobile.webp',
+  './products/beetroot.webp',
+  './products/brioche-buns.webp',
+  './products/broccoli.webp',
+  './products/burger.webp',
+  './products/chicken-breast.webp',
+  './products/chicken-thighs.webp',
+  './products/crackers.webp',
+  './products/eggs.webp',
+  './products/generic.webp',
+  './products/lemons.webp',
+  './products/milk.webp',
+  './products/onions.webp',
+  './products/pear-tomatoes.webp',
+  './products/pickles.webp',
+  './products/piri-piri.webp',
+  './products/pork-cubes.webp',
+  './products/pork-cutlets.webp',
+  './products/rice.webp',
+  './products/yogurt.webp',
 ];
 
 self.addEventListener('install', (event) => {
